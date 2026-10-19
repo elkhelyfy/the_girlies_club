@@ -25,7 +25,7 @@ if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
   try {
     const input = await eventFromForm(form);
-    const id = saveEvent(null, input);
+    const id = await saveEvent(null, input);
     return Astro.redirect(withFlash(`/admin/events/${id}`, { saved: "Event created. Now it's ready for guests." }));
   } catch (e) {
     if (!(e instanceof FormError || e instanceof UploadError)) throw e;
@@ -36,12 +36,13 @@ if (Astro.request.method === "POST") {
     values.location_id = Number(form.get("location_id")) || null;
   }
 }
+const activeLocations = await locations({ includeInactive: false });
 ---
 
 <AdminLayout title="New event" intro="Start as a draft if you're still planning — switch it to Open when you're ready for reservations.">
   <a class="back-link" href="/admin/events">← All events</a>
   {error && <p class="flash flash--err" role="alert">{error}</p>}
   <section class="panel">
-    <EventForm values={values} locations={locations({ includeInactive: false })} submitLabel="Create event" cancelHref="/admin/events" />
+    <EventForm values={values} locations={activeLocations} submitLabel="Create event" cancelHref="/admin/events" />
   </section>
 </AdminLayout>

@@ -27,29 +27,29 @@ const here = `/admin/events/${id}`;
 
 if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
-  const flash = handleReservationAction(form);
+  const flash = await handleReservationAction(form);
   if (flash) return Astro.redirect(withFlash(safeBack(form, here), flash));
 
   const intent = String(form.get("intent") ?? "");
   if (intent === "event-status") {
     const status = String(form.get("status")) as EventStatus;
-    if (EVENT_STATUS_KEYS.includes(status)) setEventStatus(id, status);
+    if (EVENT_STATUS_KEYS.includes(status)) await setEventStatus(id, status);
     return Astro.redirect(withFlash(here, { saved: `Status: ${EVENT_STATUS[status]?.label ?? status}.` }));
   }
   if (intent === "event-duplicate") {
-    const copy = duplicateEvent(id);
+    const copy = await duplicateEvent(id);
     if (copy) return Astro.redirect(withFlash(`/admin/events/${copy}/edit`, { saved: "Copied as a draft one week later — check the date, then open it." }));
   }
   if (intent === "event-delete") {
-    deleteEvent(id);
+    await deleteEvent(id);
     return Astro.redirect(withFlash("/admin/events", { saved: "Event deleted." }));
   }
 }
 
-const event = getEvent(id);
+const event = await getEvent(id);
 if (!event) return Astro.redirect(withFlash("/admin/events", { error: "That event doesn't exist." }));
 
-const guests = reservationsForEvent(id);
+const guests = await reservationsForEvent(id);
 const groups = [
   { key: "new", title: "New requests", hint: "Waiting for you to confirm", list: guests.filter((r) => r.status === "pending") },
   { key: "coming", title: "Coming", hint: "Confirmed seats", list: guests.filter((r) => r.status === "confirmed" || r.status === "attended") },
@@ -67,7 +67,7 @@ const paid = guests.filter((r) => r.payment === "paid").reduce((n, r) => n + r.s
 const deposits = guests.filter((r) => r.payment === "deposit").length;
 const stillHolding = guests.filter((r) => RESERVATION_STATUS[r.status].holdsSeat).length;
 
-const moveTargets = adminEvents("upcoming").map((e) => ({ id: e.id, name: e.name, date: e.date }));
+const moveTargets = (await adminEvents("upcoming")).map((e) => ({ id: e.id, name: e.name, date: e.date }));
 const back = here;
 const phase = PHASE[event.phase];
 

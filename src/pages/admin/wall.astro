@@ -23,24 +23,24 @@ if (Astro.request.method === "POST") {
   const intent = form.get("intent");
 
   if (intent === "delete" && id) {
-    deleteWallPost(id);
+    await deleteWallPost(id);
     return Astro.redirect(back(PAGE, { saved: "Removed from the wall." }));
   }
 
   if (intent === "toggle" && id) {
-    const post = getWallPost(id);
-    if (post) saveWallPost(id, { ...post, published: post.published ? 0 : 1 });
+    const post = await getWallPost(id);
+    if (post) await saveWallPost(id, { ...post, published: post.published ? 0 : 1 });
     return Astro.redirect(back(PAGE, { saved: post?.published ? "Hidden from the wall." : "Back on the wall." }));
   }
 
   try {
-    const existing = id ? getWallPost(id) : undefined;
+    const existing = id ? await getWallPost(id) : undefined;
     const instagram = cleanHandle(text(form, "instagram", { required: "Add the maker's Instagram username." }));
     if (!instagram) throw new FormError("That doesn't look like an Instagram username.");
     const image = await imageFromForm(form, "image", existing?.image ?? null);
     if (!image) throw new FormError("Every piece on the wall needs a photo.");
 
-    saveWallPost(id, {
+    await saveWallPost(id, {
       image,
       instagram,
       alt: text(form, "alt", { max: 200 }),
@@ -59,13 +59,13 @@ if (Astro.request.method === "POST") {
   }
 }
 
-const posts = wallPosts({ includeHidden: true });
+const posts = await wallPosts({ includeHidden: true });
 const editParam = Astro.url.searchParams.get("edit");
 const editing: Partial<WallPost> | null =
   editParam === "new"
     ? { published: 1, craft: "Crochet" }
     : editParam
-      ? (getWallPost(Number(editParam)) ?? null)
+      ? (await getWallPost(Number(editParam)) ?? null)
       : null;
 ---
 

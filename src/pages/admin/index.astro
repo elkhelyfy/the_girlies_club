@@ -16,21 +16,21 @@ import { formatDay } from "../../lib/dates";
 
 if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
-  const flash = handleReservationAction(form) ?? { error: "Unknown action." };
+  const flash = await handleReservationAction(form) ?? { error: "Unknown action." };
   return Astro.redirect(withFlash(safeBack(form, "/admin"), flash));
 }
 
-const c = counts();
-const stats = bookingStats();
-const upcoming = adminEvents("upcoming");
-const pending = listReservations({ status: "pending", when: "upcoming" });
-const drafts = adminEvents("draft");
+const c = await counts();
+const stats = await bookingStats();
+const upcoming = await adminEvents("upcoming");
+const pending = await listReservations({ status: "pending", when: "upcoming" });
+const drafts = await adminEvents("draft");
 
-const events = new Map<number, EventRow | undefined>();
-const eventFor = (id: number) => {
-  if (!events.has(id)) events.set(id, getEvent(id));
-  return events.get(id)!;
-};
+const eventIds = [...new Set(pending.map((r) => r.event_id))];
+const events = new Map<number, EventRow | undefined>(
+  await Promise.all(eventIds.map(async (id) => [id, await getEvent(id)] as const)),
+);
+const eventFor = (id: number) => events.get(id)!;
 
 const fill = stats.capacity30 ? Math.round((stats.seatsBooked30 / stats.capacity30) * 100) : 0;
 const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Casablanca" }).format(new Date()));

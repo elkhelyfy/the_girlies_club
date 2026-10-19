@@ -10,12 +10,12 @@ if (Astro.request.method === "POST") {
   const id = int(form, "id") || null;
 
   if (form.get("intent") === "delete" && id) {
-    deleteFaq(id);
+    await deleteFaq(id);
     return Astro.redirect(back(PAGE, { saved: "Question deleted." }));
   }
 
   try {
-    saveFaq(id, {
+    await saveFaq(id, {
       question: text(form, "question", { max: 200, required: "Write the question." }),
       answer: text(form, "answer", { max: 1200, required: "Write the answer." }),
       position: int(form, "position", { min: 0, max: 999 }),
@@ -27,10 +27,10 @@ if (Astro.request.method === "POST") {
   }
 }
 
-const items = faqs();
+const items = await faqs();
 const editParam = Astro.url.searchParams.get("edit");
 const editing: Partial<Faq> | null =
-  editParam === "new" ? { position: items.length } : editParam ? (getFaq(Number(editParam)) ?? null) : null;
+  editParam === "new" ? { position: items.length } : editParam ? (await getFaq(Number(editParam)) ?? null) : null;
 ---
 
 <AdminLayout title="FAQ" intro="The questions on the home page. The first one starts open; lowest order number comes first.">

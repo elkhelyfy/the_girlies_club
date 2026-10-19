@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { db } from "./db";
+import { all, exec, get, transaction, type Runner } from "./db";
 import { todayISO, type Settings } from "./content";
 import { longDay } from "./dates";
 
@@ -64,14 +64,6 @@ export const SOURCES = {
 export type Source = keyof typeof SOURCES;
 export const SOURCE_KEYS = Object.keys(SOURCES) as Source[];
 
-/**
- * node:sqlite refuses named parameters a statement doesn't use, so pass only
- * the ones that actually appear in the SQL.
- */
-function bind(sql: string, params: Record<string, string | number>) {
-  return Object.fromEntries(Object.entries(params).filter(([key]) => new RegExp(`:${key}\\b`).test(sql)));
-}
-
 /** Most seats one person can request online. The team can add more by hand. */
 export const MAX_SEATS_ONLINE = 4;
 
@@ -93,39 +85,39 @@ export type Location = {
   upcoming_count?: number;
 };
 
-export function locations(opts: { includeInactive?: boolean } = {}): Location[] {
-  return db
-    .prepare(
-      `SELECT l.*,
-        (SELECT COUNT(*) FROM events e WHERE e.location_id = l.id) AS event_count,
-        (SELECT COUNT(*) FROM events e WHERE e.location_id = l.id AND e.date >= ? AND e.status IN ('open','closed')) AS upcoming_count
-       FROM locations l ${opts.includeInactive ? "" : "WHERE l.active = 1"}
-       ORDER BY l.active DESC, l.name COLLATE NOCASE`,
-    )
-    .all(todayISO()) as Location[];
+export function locations(opts: { includeInactive?: boolean } = {}): Promise<Location[]> {
+  return all<Location>(
+    `SELECT l.*,
+      (SELECT COUNT(*) FROM events e WHERE e.location_id = l.id)::int AS event_count,
+      (SELECT COUNT(*) FROM events e WHERE e.location_id = l.id AND e.date >= ? AND e.status IN ('open','closed'))::int AS upcoming_count
+     FROM locations l ${opts.includeInactive ? "" : "WHERE l.active = 1"}
+     ORDER BY l.active DESC, lower(l.name)`,
+    [todayISO()],
+  );
 }
 
-export const getLocation = (id: number) =>
-  db.prepare("SELECT * FROM locations WHERE id = ?").get(id) as Location | undefined;
+export const getLocation = (id: number) => get<Location>("SELECT * FROM locations WHERE id = ?", [id]);
 
 export type LocationInput = Omit<Location, "id" | "event_count" | "upcoming_count">;
 
-export function saveLocation(id: number | null, l: LocationInput): number {
+export async function saveLocation(id: number | null, l: LocationInput): Promise<number> {
   const values = [l.name, l.area, l.address, l.maps_url, l.capacity, l.notes, l.public_address, l.active];
   if (id) {
-    db.prepare(
+    await exec(
       "UPDATE locations SET name=?, area=?, address=?, maps_url=?, capacity=?, notes=?, public_address=?, active=? WHERE id=?",
-    ).run(...values, id);
+      [...values, id],
+    );
     return id;
   }
-  const result = db
-    .prepare("INSERT INTO locations (name, area, address, maps_url, capacity, notes, public_address, active) VALUES (?,?,?,?,?,?,?,?)")
-    .run(...values);
-  return Number(result.lastInsertRowid);
+  const row = await get<{ id: number }>(
+    "INSERT INTO locations (name, area, address, maps_url, capacity, notes, public_address, active) VALUES (?,?,?,?,?,?,?,?) RETURNING id",
+    values,
+  );
+  return row!.id;
 }
 
 /** Events that used it keep their details; they just lose the location. */
-export const deleteLocation = (id: number) => db.prepare("DELETE FROM locations WHERE id = ?").run(id);
+export const deleteLocation = (id: number) => exec("DELETE FROM locations WHERE id = ?", [id]);
 
 /** The label visitors see: "Studio Rose · Maarif". */
 export function publicPlace(e: Pick<EventRow, "location_name" | "location_area" | "location_address" | "location_public">) {
@@ -187,9 +179,9 @@ const EVENT_SELECT = `
   LEFT JOIN locations l ON l.id = e.location_id
   LEFT JOIN (
     SELECT event_id,
-      SUM(CASE WHEN status IN (${HOLDING_SQL}) THEN seats ELSE 0 END) AS booked,
-      SUM(status = 'pending') AS pending,
-      SUM(status = 'waitlist') AS waitlist
+      SUM(CASE WHEN status IN (${HOLDING_SQL}) THEN seats ELSE 0 END)::int AS booked,
+      (COUNT(*) FILTER (WHERE status = 'pending'))::int AS pending,
+      (COUNT(*) FILTER (WHERE status = 'waitlist'))::int AS waitlist
     FROM reservations GROUP BY event_id
   ) r ON r.event_id = e.id`;
 
@@ -215,27 +207,26 @@ function hydrate(rows: unknown[]): EventRow[] {
 /** What visitors can see: open and closed events, plus cancelled ones on the calendar. */
 const PUBLIC = (withCancelled: boolean) => `e.status IN ('open','closed'${withCancelled ? ",'cancelled'" : ""})`;
 
-export function upcomingEvents(opts: { limit?: number; withCancelled?: boolean } = {}): EventRow[] {
+export async function upcomingEvents(opts: { limit?: number; withCancelled?: boolean } = {}): Promise<EventRow[]> {
   return hydrate(
-    db
-      .prepare(`${EVENT_SELECT} WHERE ${PUBLIC(!!opts.withCancelled)} AND e.date >= ? ORDER BY e.date, e.start_time LIMIT ?`)
-      .all(todayISO(), opts.limit ?? 500),
+    await all(`${EVENT_SELECT} WHERE ${PUBLIC(!!opts.withCancelled)} AND e.date >= ? ORDER BY e.date, e.start_time LIMIT ?`, [
+      todayISO(),
+      opts.limit ?? 500,
+    ]),
   );
 }
 
-export function eventsBetween(from: string, to: string): EventRow[] {
-  return hydrate(
-    db.prepare(`${EVENT_SELECT} WHERE ${PUBLIC(true)} AND e.date BETWEEN ? AND ? ORDER BY e.date, e.start_time`).all(from, to),
-  );
+export async function eventsBetween(from: string, to: string): Promise<EventRow[]> {
+  return hydrate(await all(`${EVENT_SELECT} WHERE ${PUBLIC(true)} AND e.date BETWEEN ? AND ? ORDER BY e.date, e.start_time`, [from, to]));
 }
 
 /** A single event as visitors may see it (never drafts). */
-export function publicEvent(id: number): EventRow | undefined {
-  return hydrate(db.prepare(`${EVENT_SELECT} WHERE e.id = ? AND ${PUBLIC(true)}`).all(id))[0];
+export async function publicEvent(id: number): Promise<EventRow | undefined> {
+  return hydrate(await all(`${EVENT_SELECT} WHERE e.id = ? AND ${PUBLIC(true)}`, [id]))[0];
 }
 
-export function getEvent(id: number): EventRow | undefined {
-  return hydrate(db.prepare(`${EVENT_SELECT} WHERE e.id = ?`).all(id))[0];
+export async function getEvent(id: number, run?: Runner): Promise<EventRow | undefined> {
+  return hydrate(await all(`${EVENT_SELECT} WHERE e.id = ?`, [id], run))[0];
 }
 
 export const EVENT_VIEWS = {
@@ -247,67 +238,62 @@ export const EVENT_VIEWS = {
 } as const;
 export type EventView = keyof typeof EVENT_VIEWS;
 
-export function adminEvents(view: EventView): EventRow[] {
-  const today = todayISO();
-  const where: Record<EventView, string> = {
-    upcoming: "e.status IN ('open','closed') AND e.date >= :today",
-    past: "(e.status = 'done' OR (e.status IN ('open','closed') AND e.date < :today))",
-    draft: "e.status = 'draft'",
-    cancelled: "e.status = 'cancelled'",
-    all: "1",
-  };
+/** Each view as a condition; `$1` is today's date. */
+const VIEW_WHERE: Record<EventView, string> = {
+  upcoming: "e.status IN ('open','closed') AND e.date >= $1",
+  past: "(e.status = 'done' OR (e.status IN ('open','closed') AND e.date < $1))",
+  draft: "e.status = 'draft'",
+  cancelled: "e.status = 'cancelled'",
+  all: "true",
+};
+const usesToday = (where: string) => where.includes("$1");
+
+export async function adminEvents(view: EventView): Promise<EventRow[]> {
+  const where = VIEW_WHERE[view];
   const order = view === "upcoming" || view === "draft" ? "e.date, e.start_time" : "e.date DESC, e.start_time DESC";
-  const sql = `${EVENT_SELECT} WHERE ${where[view]} ORDER BY ${order}`;
-  return hydrate(db.prepare(sql).all(bind(sql, { today })));
+  return hydrate(await all(`${EVENT_SELECT} WHERE ${where} ORDER BY ${order}`, usesToday(where) ? [todayISO()] : []));
 }
 
-export function eventViewCounts(): Record<EventView, number> {
-  const today = todayISO();
-  const n = (where: string) => {
-    const sql = `SELECT COUNT(*) AS n FROM events e WHERE ${where}`;
-    return (db.prepare(sql).get(bind(sql, { today })) as { n: number }).n;
-  };
-  return {
-    upcoming: n("e.status IN ('open','closed') AND e.date >= :today"),
-    past: n("(e.status = 'done' OR (e.status IN ('open','closed') AND e.date < :today))"),
-    draft: n("e.status = 'draft'"),
-    cancelled: n("e.status = 'cancelled'"),
-    all: n("1"),
-  };
+export async function eventViewCounts(): Promise<Record<EventView, number>> {
+  const columns = (Object.keys(VIEW_WHERE) as EventView[])
+    .map((view) => `(COUNT(*) FILTER (WHERE ${VIEW_WHERE[view]}))::int AS ${view}`)
+    .join(", ");
+  const row = await get<Record<EventView, number>>(`SELECT ${columns} FROM events e`, [todayISO()]);
+  return row!;
 }
 
 export type EventInput = Omit<EventTable, "id">;
 
-export function saveEvent(id: number | null, e: EventInput): number {
+export async function saveEvent(id: number | null, e: EventInput): Promise<number> {
   const values = [
     e.name, e.craft, e.level, e.date, e.start_time, e.end_time, e.capacity, e.held_seats, e.price, e.blurb,
     e.image, e.alt, e.tone, e.is_new, e.status, e.location_id, e.notes,
   ];
   if (id) {
-    db.prepare(
+    await exec(
       `UPDATE events SET name=?, craft=?, level=?, date=?, start_time=?, end_time=?, capacity=?, held_seats=?, price=?,
         blurb=?, image=?, alt=?, tone=?, is_new=?, status=?, location_id=?, notes=? WHERE id=?`,
-    ).run(...values, id);
+      [...values, id],
+    );
     return id;
   }
-  const result = db
-    .prepare(
-      `INSERT INTO events (name, craft, level, date, start_time, end_time, capacity, held_seats, price, blurb, image, alt,
-        tone, is_new, status, location_id, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(...values);
-  return Number(result.lastInsertRowid);
+  const row = await get<{ id: number }>(
+    `INSERT INTO events (name, craft, level, date, start_time, end_time, capacity, held_seats, price, blurb, image, alt,
+      tone, is_new, status, location_id, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+    values,
+  );
+  return row!.id;
 }
 
 export const setEventStatus = (id: number, status: EventStatus) =>
-  db.prepare("UPDATE events SET status = ? WHERE id = ?").run(status, id);
+  exec("UPDATE events SET status = ? WHERE id = ?", [status, id]);
 
 /** Reservations go with it (ON DELETE CASCADE). */
-export const deleteEvent = (id: number) => db.prepare("DELETE FROM events WHERE id = ?").run(id);
+export const deleteEvent = (id: number) => exec("DELETE FROM events WHERE id = ?", [id]);
 
 /** "Run it again": same workshop one week later, as a draft with no bookings. */
-export function duplicateEvent(id: number): number | null {
-  const e = getEvent(id);
+export async function duplicateEvent(id: number): Promise<number | null> {
+  const e = await getEvent(id);
   if (!e) return null;
   const next = new Date(`${e.date}T12:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 7);
@@ -351,30 +337,25 @@ export type ReservationWithEvent = Reservation & {
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
 
-function newCode(): string {
+async function newCode(run: Runner): Promise<string> {
   for (;;) {
     const code = `GC-${Array.from({ length: 5 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join("")}`;
-    if (!db.prepare("SELECT 1 FROM reservations WHERE code = ?").get(code)) return code;
+    if (!(await get("SELECT 1 FROM reservations WHERE code = ?", [code], run))) return code;
   }
 }
 
 export const reservationsForEvent = (eventId: number) =>
-  db
-    .prepare(
-      `SELECT * FROM reservations WHERE event_id = ?
-       ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'attended' THEN 2
-         WHEN 'waitlist' THEN 3 WHEN 'no_show' THEN 4 ELSE 5 END, created_at, id`,
-    )
-    .all(eventId) as Reservation[];
+  all<Reservation>(
+    `SELECT * FROM reservations WHERE event_id = ?
+     ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'attended' THEN 2
+       WHEN 'waitlist' THEN 3 WHEN 'no_show' THEN 4 ELSE 5 END, created_at, id`,
+    [eventId],
+  );
 
-export const getReservation = (id: number) =>
-  db.prepare("SELECT * FROM reservations WHERE id = ?").get(id) as Reservation | undefined;
+export const getReservation = (id: number) => get<Reservation>("SELECT * FROM reservations WHERE id = ?", [id]);
 
-export function findReservation(eventId: number, code: string) {
-  return db.prepare("SELECT * FROM reservations WHERE event_id = ? AND code = ?").get(eventId, code.toUpperCase()) as
-    | Reservation
-    | undefined;
-}
+export const findReservation = (eventId: number, code: string) =>
+  get<Reservation>("SELECT * FROM reservations WHERE event_id = ? AND code = ?", [eventId, code.toUpperCase()]);
 
 export type ReservationFilter = {
   status?: ReservationStatus | "all";
@@ -382,33 +363,45 @@ export type ReservationFilter = {
   when?: "upcoming" | "past" | "all";
 };
 
-export function listReservations(f: ReservationFilter = {}): ReservationWithEvent[] {
+export function listReservations(f: ReservationFilter = {}): Promise<ReservationWithEvent[]> {
   const where: string[] = [];
-  const params: Record<string, string> = { today: todayISO() };
+  const params: string[] = [];
   if (f.status && f.status !== "all") {
-    where.push("r.status = :status");
-    params.status = f.status;
+    where.push("r.status = ?");
+    params.push(f.status);
   }
-  if (f.when === "upcoming") where.push("e.date >= :today");
-  if (f.when === "past") where.push("e.date < :today");
+  if (f.when === "upcoming") where.push("e.date >= ?");
+  if (f.when === "past") where.push("e.date < ?");
+  if (f.when === "upcoming" || f.when === "past") params.push(todayISO());
   if (f.q?.trim()) {
-    where.push(`(r.name LIKE :q OR r.phone LIKE :q OR r.instagram LIKE :q OR r.email LIKE :q OR r.code LIKE :q OR e.name LIKE :q
-      OR replace(replace(replace(r.phone, ' ', ''), '-', ''), '+', '') LIKE :qdigits)`);
-    params.q = `%${f.q.trim()}%`;
-    params.qdigits = `%${f.q.replace(/\D/g, "") || "\u0000"}%`;
+    const fields = ["r.name", "r.phone", "r.instagram", "r.email", "r.code", "e.name"];
+    const match = fields.map((field) => `${field} ILIKE ?`);
+    params.push(...fields.map(() => `%${f.q!.trim()}%`));
+    const digits = f.q.replace(/\D/g, "");
+    if (digits) {
+      match.push("replace(replace(replace(r.phone, ' ', ''), '-', ''), '+', '') LIKE ?");
+      params.push(`%${digits}%`);
+    }
+    where.push(`(${match.join(" OR ")})`);
   }
-  const sql = `SELECT r.*, e.name AS event_name, e.date AS event_date, e.start_time AS event_start, e.price AS event_price,
+  return all<ReservationWithEvent>(
+    `SELECT r.*, e.name AS event_name, e.date AS event_date, e.start_time AS event_start, e.price AS event_price,
       e.status AS event_status
      FROM reservations r JOIN events e ON e.id = r.event_id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, e.date ${f.when === "past" ? "DESC" : "ASC"}, r.created_at`;
-  return db.prepare(sql).all(bind(sql, params)) as ReservationWithEvent[];
+     ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, e.date ${f.when === "past" ? "DESC" : "ASC"}, r.created_at`,
+    params,
+  );
 }
 
-export function reservationCounts(when: ReservationFilter["when"] = "upcoming"): Record<ReservationStatus | "all", number> {
-  const clause = when === "upcoming" ? "AND e.date >= :today" : when === "past" ? "AND e.date < :today" : "";
-  const sql = `SELECT r.status, COUNT(*) AS n FROM reservations r JOIN events e ON e.id = r.event_id WHERE 1 ${clause} GROUP BY r.status`;
-  const rows = db.prepare(sql).all(bind(sql, { today: todayISO() })) as { status: ReservationStatus; n: number }[];
+export async function reservationCounts(
+  when: ReservationFilter["when"] = "upcoming",
+): Promise<Record<ReservationStatus | "all", number>> {
+  const clause = when === "upcoming" ? "WHERE e.date >= ?" : when === "past" ? "WHERE e.date < ?" : "";
+  const rows = await all<{ status: ReservationStatus; n: number }>(
+    `SELECT r.status, COUNT(*)::int AS n FROM reservations r JOIN events e ON e.id = r.event_id ${clause} GROUP BY r.status`,
+    clause ? [todayISO()] : [],
+  );
   const counts = Object.fromEntries(RESERVATION_STATUS_KEYS.map((k) => [k, 0])) as Record<ReservationStatus | "all", number>;
   counts.all = 0;
   for (const row of rows) {
@@ -434,10 +427,11 @@ export function createReservation(
   eventId: number,
   input: ReservationInput,
   opts: { online?: boolean } = {},
-): { id: number; code: string; status: ReservationStatus } {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const event = getEvent(eventId);
+): Promise<{ id: number; code: string; status: ReservationStatus }> {
+  return transaction(async (run) => {
+    // Lock the event row so concurrent bookings for it wait their turn.
+    await exec("SELECT id FROM events WHERE id = ? FOR UPDATE", [eventId], run);
+    const event = await getEvent(eventId, run);
     if (!event) throw new BookingError("That event doesn't exist any more.");
 
     let status = input.status;
@@ -448,38 +442,35 @@ export function createReservation(
       if (input.seats > event.seats_left) status = "waitlist";
     }
 
-    const code = newCode();
-    const result = db
-      .prepare(
-        `INSERT INTO reservations (code, event_id, name, phone, instagram, email, seats, status, payment, source, message, admin_notes)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .run(
+    const code = await newCode(run);
+    const row = await get<{ id: number }>(
+      `INSERT INTO reservations (code, event_id, name, phone, instagram, email, seats, status, payment, source, message, admin_notes)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+      [
         code, eventId, input.name, input.phone, input.instagram, input.email, input.seats, status,
         input.payment, input.source, input.message, input.admin_notes,
-      );
-    db.exec("COMMIT");
-    return { id: Number(result.lastInsertRowid), code, status };
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+      ],
+      run,
+    );
+    return { id: row!.id, code, status };
+  });
 }
 
-export function updateReservation(id: number, patch: Partial<ReservationInput> & { event_id?: number }) {
-  const current = getReservation(id);
+export async function updateReservation(id: number, patch: Partial<ReservationInput> & { event_id?: number }) {
+  const current = await getReservation(id);
   if (!current) return;
   const next = { ...current, ...patch };
-  db.prepare(
+  await exec(
     `UPDATE reservations SET event_id=?, name=?, phone=?, instagram=?, email=?, seats=?, status=?, payment=?, source=?,
-      message=?, admin_notes=?, updated_at=datetime('now') WHERE id=?`,
-  ).run(
-    next.event_id, next.name, next.phone, next.instagram, next.email, next.seats, next.status, next.payment, next.source,
-    next.message, next.admin_notes, id,
+      message=?, admin_notes=?, updated_at=to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') WHERE id=?`,
+    [
+      next.event_id, next.name, next.phone, next.instagram, next.email, next.seats, next.status, next.payment, next.source,
+      next.message, next.admin_notes, id,
+    ],
   );
 }
 
-export const deleteReservation = (id: number) => db.prepare("DELETE FROM reservations WHERE id = ?").run(id);
+export const deleteReservation = (id: number) => exec("DELETE FROM reservations WHERE id = ?", [id]);
 
 /* ==========================================================================
    People — everyone who has booked, grouped by phone, Instagram or email
@@ -507,9 +498,9 @@ export function personKey(r: Pick<Reservation, "phone" | "instagram" | "email" |
   return `name:${r.name.trim().toLowerCase()}`;
 }
 
-export function people(q = ""): Person[] {
+export async function people(q = ""): Promise<Person[]> {
   const today = todayISO();
-  const rows = listReservations({ when: "all" }).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const rows = (await listReservations({ when: "all" })).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const map = new Map<string, Person>();
   for (const r of rows) {
     const key = personKey(r);
@@ -597,22 +588,20 @@ export function guestMessage(r: Reservation, e: EventRow, s: Settings): string {
    Overview numbers for the admin home
    ========================================================================== */
 
-export function bookingStats() {
+export async function bookingStats() {
   const today = todayISO();
   const in30 = new Date(`${today}T12:00:00Z`);
   in30.setUTCDate(in30.getUTCDate() + 30);
   const until = in30.toISOString().slice(0, 10);
-  const soon = hydrate(
-    db.prepare(`${EVENT_SELECT} WHERE e.status IN ('open','closed') AND e.date BETWEEN ? AND ?`).all(today, until),
-  );
-  const paid = db
-    .prepare(
-      `SELECT COALESCE(SUM(r.seats * e.price), 0) AS total FROM reservations r JOIN events e ON e.id = r.event_id
-       WHERE r.payment = 'paid' AND substr(e.date, 1, 7) = substr(?, 1, 7)`,
-    )
-    .get(today) as { total: number };
+  const soon = hydrate(await all(`${EVENT_SELECT} WHERE e.status IN ('open','closed') AND e.date BETWEEN ? AND ?`, [today, until]));
+  const paid = (await get<{ total: number }>(
+    `SELECT COALESCE(SUM(r.seats * e.price), 0)::int AS total FROM reservations r JOIN events e ON e.id = r.event_id
+     WHERE r.payment = 'paid' AND substr(e.date, 1, 7) = substr(?, 1, 7)`,
+    [today],
+  ))!;
+  const pending = (await get<{ n: number }>("SELECT COUNT(*)::int AS n FROM reservations WHERE status = 'pending'"))!;
   return {
-    pending: (db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE status = 'pending'").get() as { n: number }).n,
+    pending: pending.n,
     seatsBooked30: soon.reduce((n, e) => n + e.booked + e.held_seats, 0),
     capacity30: soon.reduce((n, e) => n + e.capacity, 0),
     paidThisMonth: paid.total,

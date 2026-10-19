@@ -7,8 +7,8 @@ import { EVENT_VIEWS, PHASE, adminEvents, eventViewCounts, type EventView } from
 
 const param = Astro.url.searchParams.get("view") ?? "upcoming";
 const view: EventView = param in EVENT_VIEWS ? (param as EventView) : "upcoming";
-const events = adminEvents(view);
-const counts = eventViewCounts();
+const events = await adminEvents(view);
+const counts = await eventViewCounts();
 
 const day = (iso: string) => {
   const d = new Date(`${iso}T12:00:00Z`);

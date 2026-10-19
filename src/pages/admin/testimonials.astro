@@ -21,13 +21,13 @@ if (Astro.request.method === "POST") {
   const id = int(form, "id") || null;
 
   if (form.get("intent") === "delete" && id) {
-    deleteTestimonial(id);
+    await deleteTestimonial(id);
     return Astro.redirect(back(PAGE, { saved: "Testimonial deleted." }));
   }
 
   try {
-    const existing = id ? getTestimonial(id) : undefined;
-    saveTestimonial(id, {
+    const existing = id ? await getTestimonial(id) : undefined;
+    await saveTestimonial(id, {
       quote: text(form, "quote", { max: 600, required: "Add what she said." }),
       name: text(form, "name", { max: 80, required: "Add her name." }),
       role: text(form, "role", { max: 80 }),
@@ -45,13 +45,13 @@ if (Astro.request.method === "POST") {
   }
 }
 
-const items = testimonials(true);
+const items = await testimonials(true);
 const editParam = Astro.url.searchParams.get("edit");
 const editing: Partial<Testimonial> | null =
   editParam === "new"
     ? { published: 1, tone: "blush", position: items.length }
     : editParam
-      ? (getTestimonial(Number(editParam)) ?? null)
+      ? (await getTestimonial(Number(editParam)) ?? null)
       : null;
 ---
 
