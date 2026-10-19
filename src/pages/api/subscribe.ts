@@ -16,7 +16,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const spam = String(form.get("website") ?? "") !== "";
 
   let status: "added" | "exists" | "invalid" = "invalid";
-  if (!spam && EMAIL.test(email)) status = addSubscriber(email);
+  if (!spam && EMAIL.test(email)) status = await addSubscriber(email);
   if (spam) status = "added"; // look successful, store nothing
 
   if (wantsJson) {

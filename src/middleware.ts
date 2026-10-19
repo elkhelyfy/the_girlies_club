@@ -7,7 +7,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Editable site text, read once per page request (one small query).
   if (!pathname.startsWith("/media/") && !pathname.startsWith("/_image")) {
-    context.locals.settings = getSettings();
+    context.locals.settings = await getSettings();
   }
 
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");

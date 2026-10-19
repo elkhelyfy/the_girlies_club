@@ -17,7 +17,7 @@ const PAGE = "/admin/reservations";
 
 if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
-  const flash = handleReservationAction(form) ?? { error: "Unknown action." };
+  const flash = await handleReservationAction(form) ?? { error: "Unknown action." };
   return Astro.redirect(withFlash(safeBack(form, PAGE), flash));
 }
 
@@ -25,7 +25,7 @@ const params = Astro.url.searchParams;
 const whenParam = params.get("when");
 const when = whenParam === "past" || whenParam === "all" ? whenParam : "upcoming";
 const q = (params.get("q") ?? "").slice(0, 80);
-const counts = reservationCounts(when);
+const counts = await reservationCounts(when);
 const statusParam = params.get("status");
 // Open on new requests when there are some — that's the to-do list.
 const status: ReservationStatus | "all" =
@@ -35,13 +35,13 @@ const status: ReservationStatus | "all" =
       ? "pending"
       : "all";
 
-const list = listReservations({ status, when, q });
-const events = new Map<number, EventRow | undefined>();
-const eventFor = (id: number) => {
-  if (!events.has(id)) events.set(id, getEvent(id));
-  return events.get(id)!;
-};
-const moveTargets = adminEvents("upcoming").map((e) => ({ id: e.id, name: e.name, date: e.date }));
+const list = await listReservations({ status, when, q });
+const eventIds = [...new Set(list.map((r) => r.event_id))];
+const events = new Map<number, EventRow | undefined>(
+  await Promise.all(eventIds.map(async (id) => [id, await getEvent(id)] as const)),
+);
+const eventFor = (id: number) => events.get(id)!;
+const moveTargets = (await adminEvents("upcoming")).map((e) => ({ id: e.id, name: e.name, date: e.date }));
 
 const link = (patch: Record<string, string>) => {
   const next = new URLSearchParams({ status, when, ...(q ? { q } : {}), ...patch });

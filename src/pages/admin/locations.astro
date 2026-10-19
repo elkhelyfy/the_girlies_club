@@ -10,7 +10,7 @@ if (Astro.request.method === "POST") {
   const id = int(form, "id") || null;
 
   if (form.get("intent") === "delete" && id) {
-    deleteLocation(id);
+    await deleteLocation(id);
     return Astro.redirect(back(PAGE, { saved: "Location deleted. Its events now have no location set." }));
   }
 
@@ -18,7 +18,7 @@ if (Astro.request.method === "POST") {
     const maps = text(form, "maps_url", { max: 500 });
     if (maps && !/^https:\/\//i.test(maps)) throw new FormError("The map link should start with https://");
     const capacity = int(form, "capacity", { min: 0, max: 1000 });
-    saveLocation(id, {
+    await saveLocation(id, {
       name: text(form, "name", { max: 100, required: "Give the location a name." }),
       area: text(form, "area", { max: 80 }),
       address: text(form, "address", { max: 300 }),
@@ -35,10 +35,10 @@ if (Astro.request.method === "POST") {
   }
 }
 
-const list = locations({ includeInactive: true });
+const list = await locations({ includeInactive: true });
 const editParam = Astro.url.searchParams.get("edit");
 const editing: Partial<Location> | null =
-  editParam === "new" ? { active: 1, public_address: 0 } : editParam ? (getLocation(Number(editParam)) ?? null) : null;
+  editParam === "new" ? { active: 1, public_address: 0 } : editParam ? (await getLocation(Number(editParam)) ?? null) : null;
 ---
 
 <AdminLayout

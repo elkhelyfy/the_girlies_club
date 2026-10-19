@@ -12,11 +12,11 @@ if (Astro.request.method === "POST") {
     const value = form.get(field.key);
     if (typeof value === "string") values[field.key] = value.slice(0, 600);
   }
-  saveSettings(values);
+  await saveSettings(values);
   return Astro.redirect(back(PAGE, { saved: "Site text saved." }));
 }
 
-const settings = getSettings();
+const settings = await getSettings();
 ---
 
 <AdminLayout title="Site text" intro="Words used across the site. Leave a field empty to go back to the original text.">

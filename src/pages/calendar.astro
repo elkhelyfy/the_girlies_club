@@ -27,7 +27,7 @@ if (/^\d{4}-\d{2}$/.test(param)) {
 
 const days = daysInMonth(y, m);
 const lead = mondayIndex(y, m, 1);
-const monthEvents = eventsBetween(iso(y, m, 1), iso(y, m, days));
+const monthEvents = await eventsBetween(iso(y, m, 1), iso(y, m, days));
 const byDay = monthEvents.reduce((map, e) => map.set(e.date, [...(map.get(e.date) ?? []), e]), new Map<string, EventRow[]>());
 
 const prev = shiftMonth(y, m, -1);
@@ -42,7 +42,7 @@ const cells: ({ day: number; date: string } | null)[] = [
 while (cells.length % 7) cells.push(null);
 
 // Cancelled sessions stay listed (struck through) so anyone who booked sees it.
-const upcoming = upcomingEvents({ withCancelled: true });
+const upcoming = await upcomingEvents({ withCancelled: true });
 const live = upcoming.filter((e) => e.phase !== "cancelled");
 const groups = upcoming.reduce((map, e) => {
   const key = e.date.slice(0, 7);

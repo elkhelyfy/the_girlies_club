@@ -5,7 +5,7 @@ import { people, whatsappLink } from "../../lib/bookings";
 import { formatDay } from "../../lib/dates";
 
 const q = (Astro.url.searchParams.get("q") ?? "").slice(0, 80);
-const list = people(q);
+const list = await people(q);
 const regulars = list.filter((p) => p.attended >= 2).length;
 ---
 

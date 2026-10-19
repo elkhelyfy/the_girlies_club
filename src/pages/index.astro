@@ -17,8 +17,9 @@ import Motion from "../components/Motion.astro";
 import { faqs, testimonials, wallPosts } from "../lib/content";
 import { upcomingEvents } from "../lib/bookings";
 
-const upcoming = upcomingEvents();
-const wall = wallPosts();
+const upcoming = await upcomingEvents();
+const wall = await wallPosts();
+const [quotes, questions] = await Promise.all([testimonials(), faqs()]);
 const fromPrice = upcoming.length ? Math.min(...upcoming.map((e) => e.price)) : null;
 ---
 
@@ -37,8 +38,8 @@ const fromPrice = upcoming.length ? Math.min(...upcoming.map((e) => e.price)) : 
     <CommunityWall posts={wall.slice(0, 10)} total={wall.length} />
     <PrivateEvents />
     <Membership />
-    <Testimonials items={testimonials()} />
-    <Faq items={faqs()} />
+    <Testimonials items={quotes} />
+    <Faq items={questions} />
     <Closing fromPrice={fromPrice} />
   </main>
 

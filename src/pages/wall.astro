@@ -6,7 +6,7 @@ import WallTile from "../components/WallTile.astro";
 import Sticker from "../components/ui/Sticker.astro";
 import { wallPosts } from "../lib/content";
 
-const posts = wallPosts();
+const posts = await wallPosts();
 ---
 
 <Base

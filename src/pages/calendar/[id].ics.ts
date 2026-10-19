@@ -3,8 +3,8 @@ import { TIME_ZONE } from "../../lib/content";
 import { publicEvent } from "../../lib/bookings";
 
 /** "Add to my calendar" for one workshop, as a standard .ics file. */
-export const GET: APIRoute = ({ params, url, locals }) => {
-  const event = publicEvent(Number(params.id));
+export const GET: APIRoute = async ({ params, url, locals }) => {
+  const event = await publicEvent(Number(params.id));
   if (!event) return new Response("Not found", { status: 404 });
 
   const stamp = (date: string, time: string) => `${date.replaceAll("-", "")}T${time.replace(":", "")}00`;

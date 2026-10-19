@@ -1,9 +1,10 @@
 import { createHmac, createHash, timingSafeEqual } from "node:crypto";
 import type { AstroCookies } from "astro";
 import { ADMIN_CODE } from "astro:env/server";
+import { exec, get } from "./db";
 
 /**
- * /admin is unlocked by ADMIN_CODE from .env. A correct code earns a signed,
+ * /admin is unlocked by the ADMIN_CODE environment variable. A correct code earns a signed,
  * httpOnly cookie: `<expiry>.<hmac>`. The HMAC key is derived from the code
  * itself, so changing ADMIN_CODE logs every session out.
  */
@@ -55,22 +56,28 @@ export function isAuthed(cookies: AstroCookies): boolean {
 
 /* --- login throttling ------------------------------------------------------
    Five wrong codes from one address locks it out for fifteen minutes. Kept
-   in memory: it resets on restart, which is fine for a single small server. */
+   in the database so every server instance shares the same count. */
 
 const WINDOW_MS = 15 * 60_000;
 const MAX_ATTEMPTS = 5;
-const attempts = new Map<string, { count: number; until: number }>();
 
-export function lockedFor(ip: string): number {
-  const entry = attempts.get(ip);
-  if (!entry || entry.until < Date.now()) return 0;
-  return entry.count >= MAX_ATTEMPTS ? Math.ceil((entry.until - Date.now()) / 60_000) : 0;
+export async function lockedFor(ip: string): Promise<number> {
+  const entry = await get<{ count: number; until: string }>("SELECT count, until FROM login_attempts WHERE ip = ?", [ip]);
+  const until = Number(entry?.until ?? 0);
+  if (!entry || until < Date.now()) return 0;
+  return entry.count >= MAX_ATTEMPTS ? Math.ceil((until - Date.now()) / 60_000) : 0;
 }
 
-export function recordFailure(ip: string) {
-  const entry = attempts.get(ip);
-  if (!entry || entry.until < Date.now()) attempts.set(ip, { count: 1, until: Date.now() + WINDOW_MS });
-  else entry.count += 1;
+export async function recordFailure(ip: string) {
+  const now = Date.now();
+  // A fresh window starts once the previous one has run out.
+  await exec(
+    `INSERT INTO login_attempts (ip, count, until) VALUES (?, 1, ?)
+     ON CONFLICT (ip) DO UPDATE SET
+       count = CASE WHEN login_attempts.until::bigint < ? THEN 1 ELSE login_attempts.count + 1 END,
+       until = CASE WHEN login_attempts.until::bigint < ? THEN excluded.until ELSE login_attempts.until END`,
+    [ip, String(now + WINDOW_MS), now, now],
+  );
 }
 
-export const clearFailures = (ip: string) => attempts.delete(ip);
+export const clearFailures = (ip: string) => exec("DELETE FROM login_attempts WHERE ip = ?", [ip]);

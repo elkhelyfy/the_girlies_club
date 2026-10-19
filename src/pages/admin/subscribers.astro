@@ -8,11 +8,11 @@ const PAGE = "/admin/subscribers";
 if (Astro.request.method === "POST") {
   const form = await Astro.request.formData();
   const id = int(form, "id");
-  if (id) deleteSubscriber(id);
+  if (id) await deleteSubscriber(id);
   return Astro.redirect(back(PAGE, { saved: "Removed from the list." }));
 }
 
-const list = subscribers();
+const list = await subscribers();
 const joined = (stamp: string) =>
   new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${stamp}Z`));
 ---

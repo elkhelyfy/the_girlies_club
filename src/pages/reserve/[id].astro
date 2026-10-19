@@ -19,7 +19,7 @@ import { longDay } from "../../lib/dates";
 import { allow } from "../../lib/limit";
 import { price } from "../../data/site";
 
-const event = publicEvent(Number(Astro.params.id));
+const event = await publicEvent(Number(Astro.params.id));
 if (!event) return Astro.rewrite("/404");
 
 const s = Astro.locals.settings;
@@ -57,7 +57,7 @@ if (Astro.request.method === "POST" && bookable) {
     error = "That email doesn't look right — or leave it empty.";
   } else {
     try {
-      const { code } = createReservation(
+      const { code } = await createReservation(
         event.id,
         {
           name: values.name,
@@ -83,7 +83,7 @@ if (Astro.request.method === "POST" && bookable) {
 
 // After a successful request: look the code up so we can say "pending" vs "wait list".
 const okParam = Astro.url.searchParams.get("ok");
-const done = okParam ? (findReservation(event.id, okParam) ?? { status: "pending" as ReservationStatus, code: "", seats: 1 }) : null;
+const done = okParam ? (await findReservation(event.id, okParam) ?? { status: "pending" as ReservationStatus, code: "", seats: 1 }) : null;
 
 if (error) Astro.response.status = 400;
 const statusLine =

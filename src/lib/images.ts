@@ -1,11 +1,13 @@
 import type { ImageMetadata } from "astro";
-import { db } from "./db";
+import { getStore } from "@netlify/blobs";
+import { get } from "./db";
 import { library } from "./assets";
 
 /**
  * An image reference stored in the database:
  *   asset:<key>  — a photo bundled with the site (lib/assets.ts)
- *   media:<id>   — a photo uploaded through /admin, stored as a BLOB
+ *   media:<id>   — a photo uploaded through /admin; the row is in the database,
+ *                  the bytes in the "media" Netlify Blobs store under the same id
  */
 export type ResolvedImage =
   | { kind: "asset"; image: ImageMetadata }
@@ -41,14 +43,17 @@ export async function storeUpload(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = sniff(bytes);
   if (!mime) throw new UploadError("Only JPEG, PNG or WebP photos can be uploaded.");
-  const result = db.prepare("INSERT INTO media (mime, bytes) VALUES (?, ?)").run(mime, bytes);
-  return `media:${result.lastInsertRowid}`;
+  const row = await get<{ id: number }>("INSERT INTO media (mime) VALUES (?) RETURNING id", [mime]);
+  await media().set(String(row!.id), bytes.buffer as ArrayBuffer, { metadata: { mime } });
+  return `media:${row!.id}`;
 }
 
-export function getMedia(id: number): { mime: string; bytes: Uint8Array } | undefined {
-  return db.prepare("SELECT mime, bytes FROM media WHERE id = ?").get(id) as
-    | { mime: string; bytes: Uint8Array }
-    | undefined;
+const media = () => getStore("media");
+
+export async function getMedia(id: number): Promise<{ mime: string; bytes: ArrayBuffer } | undefined> {
+  const blob = await media().getWithMetadata(String(id), { type: "arrayBuffer" });
+  if (!blob) return undefined;
+  return { mime: String(blob.metadata.mime ?? "application/octet-stream"), bytes: blob.data };
 }
 
 /**

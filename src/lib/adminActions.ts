@@ -83,16 +83,16 @@ function guestFromForm(form: FormData) {
  * Handles every reservation action an admin form can post. Returns the flash
  * message to show, or null if the form wasn't a reservation action.
  */
-export function handleReservationAction(form: FormData): { saved?: string; error?: string } | null {
+export async function handleReservationAction(form: FormData): Promise<{ saved?: string; error?: string } | null> {
   const intent = String(form.get("intent") ?? "");
   if (!intent.startsWith("res-")) return null;
 
   try {
     if (intent === "res-add") {
       const eventId = int(form, "event_id");
-      if (!getEvent(eventId)) throw new FormError("That event doesn't exist.");
+      if (!(await getEvent(eventId))) throw new FormError("That event doesn't exist.");
       const guest = guestFromForm(form);
-      createReservation(eventId, {
+      await createReservation(eventId, {
         ...guest,
         seats: int(form, "seats", { min: 1, max: 50, fallback: 1 }),
         status: oneOf(form, "status", RESERVATION_STATUS_KEYS, "confirmed"),
@@ -105,23 +105,23 @@ export function handleReservationAction(form: FormData): { saved?: string; error
     }
 
     const id = int(form, "id");
-    const current = getReservation(id);
+    const current = await getReservation(id);
     if (!current) throw new FormError("That reservation doesn't exist any more.");
 
     switch (intent) {
       case "res-status": {
         const status = oneOf(form, "status", RESERVATION_STATUS_KEYS, current.status);
-        updateReservation(id, { status });
+        await updateReservation(id, { status });
         return { saved: `${current.name}: ${RESERVATION_STATUS[status].label.replace(/ 🌸$/, "")}.` };
       }
       case "res-payment": {
-        updateReservation(id, { payment: oneOf(form, "payment", PAYMENT_KEYS, current.payment) });
+        await updateReservation(id, { payment: oneOf(form, "payment", PAYMENT_KEYS, current.payment) });
         return { saved: `Payment updated for ${current.name}.` };
       }
       case "res-save": {
         const eventId = int(form, "event_id", { fallback: current.event_id });
-        if (!getEvent(eventId)) throw new FormError("Pick an event that exists.");
-        updateReservation(id, {
+        if (!(await getEvent(eventId))) throw new FormError("Pick an event that exists.");
+        await updateReservation(id, {
           ...guestFromForm(form),
           event_id: eventId,
           seats: int(form, "seats", { min: 1, max: 50, fallback: current.seats }),
@@ -133,7 +133,7 @@ export function handleReservationAction(form: FormData): { saved?: string; error
         return { saved: eventId !== current.event_id ? `${current.name} moved to another event.` : `${current.name} updated.` };
       }
       case "res-delete": {
-        deleteReservation(id);
+        await deleteReservation(id);
         return { saved: `${current.name}'s reservation deleted.` };
       }
     }

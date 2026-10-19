@@ -4,7 +4,7 @@ import "@fontsource-variable/jost";
 import "../styles/global.css";
 import { Image } from "astro:assets";
 import logo from "../assets/logo-wordmark.png";
-import { db } from "../lib/db";
+import { get } from "../lib/db";
 
 interface Props {
   title: string;
@@ -18,7 +18,7 @@ const saved = Astro.url.searchParams.get("saved");
 const error = Astro.url.searchParams.get("error");
 
 // New requests waiting on the team — shown as a badge on "Reservations".
-const pending = (db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE status = 'pending'").get() as { n: number }).n;
+const pending = (await get<{ n: number }>("SELECT COUNT(*)::int AS n FROM reservations WHERE status = 'pending'"))!.n;
 
 const groups = [
   {

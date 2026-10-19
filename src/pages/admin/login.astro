@@ -25,17 +25,17 @@ let error = "";
 const ip = Astro.clientAddress ?? "unknown";
 
 if (Astro.request.method === "POST") {
-  const minutes = lockedFor(ip);
+  const minutes = await lockedFor(ip);
   if (minutes) {
     error = `Too many tries. Wait ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
   } else {
     const form = await Astro.request.formData();
     if (checkCode(String(form.get("code") ?? ""))) {
-      clearFailures(ip);
+      await clearFailures(ip);
       startSession(Astro.cookies, Astro.url.protocol === "https:");
       return Astro.redirect(next);
     }
-    recordFailure(ip);
+    await recordFailure(ip);
     error = "That code isn't right.";
   }
 }
