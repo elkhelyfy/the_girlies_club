@@ -1,0 +1,336 @@
+---
+import { Image } from "astro:assets";
+import logo from "../assets/logo-wordmark-burgundy.png";
+import { footerLinks, site, socials } from "../data/site";
+import Icon from "./ui/Icon.astro";
+---
+
+<footer class="footer">
+  <div class="shell footer__top">
+    <div class="footer__brand">
+      <a class="wordmark" href="#top" aria-label={`${site.name} — home`}>
+        <Image class="wordmark__mark" src={logo} alt={site.name} densities={[1, 2]} width={140} />
+      </a>
+
+      <p class="footer__blurb">
+        {site.tagline} Made in {site.city}, 100% femmes.
+      </p>
+
+      <a class="footer__ig" href={site.instagram} target="_blank" rel="noopener">
+        <Icon name="instagram" />
+        {site.handle}
+      </a>
+
+      <ul class="socials">
+        {
+          socials.map((social) => (
+            <li>
+              <a
+                href={social.href}
+                target="_blank"
+                rel="noopener"
+                style={`--dot:${social.color}`}
+                aria-label={social.name}
+              >
+                <Icon name={social.icon} />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {
+      footerLinks.map((column) => (
+        <nav class="footer__col" aria-label={column.heading}>
+          <h2 class="footer__heading">{column.heading}</h2>
+          <ul>
+            {column.links.map((link) => (
+              <li>
+                <a
+                  href={link.href}
+                  {...("external" in link && link.external ? { target: "_blank", rel: "noopener" } : {})}
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
+
+    <div class="signup">
+      <h2 class="signup__title">
+        <span aria-hidden="true">💌</span>
+        The list
+      </h2>
+      <p class="signup__body">New dates drop here first. About one email a month.</p>
+
+      <form class="signup__form" data-signup>
+        <label class="sr-only" for="email">Email address</label>
+        <input id="email" name="email" type="email" required placeholder="you@email.com" />
+        <button type="submit" aria-label="Subscribe">
+          <Icon name="arrow" />
+        </button>
+      </form>
+
+      <p class="signup__status" data-status role="status"></p>
+    </div>
+  </div>
+
+  <div class="shell footer__base">
+    <p>© {site.year} {site.name} · workshops &amp; pause café · Crafted with 💗 in {site.city}.</p>
+    <a class="totop" href="#top">
+      Back to top
+      <span aria-hidden="true"><Icon name="arrowUp" /></span>
+    </a>
+  </div>
+</footer>
+
+<script>
+  // No backend yet — acknowledge locally so the control never looks broken.
+  const form = document.querySelector("[data-signup]");
+  const status = document.querySelector("[data-status]");
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (status) status.textContent = "You're on the list. See you at the table 🌸";
+    (form as HTMLFormElement).reset();
+  });
+</script>
+
+<style>
+  .footer {
+    padding-block: clamp(3rem, 6vw, 4.5rem) 2rem;
+    background: linear-gradient(180deg, #ffffff 0%, var(--burgundy-tint) 100%);
+  }
+
+  .footer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .footer__brand {
+    position: relative;
+  }
+
+  .footer__top {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  /* --- brand -------------------------------------------------------------- */
+
+  .wordmark {
+    display: inline-flex;
+  }
+
+  .wordmark__mark {
+    width: auto;
+    height: 96px;
+  }
+
+  .footer__blurb {
+    margin-top: 0.9rem;
+    max-width: 34ch;
+    font-size: var(--step--1);
+    color: var(--ink-60);
+  }
+
+  .socials {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 1.15rem;
+  }
+
+  .socials a {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: var(--edge);
+    border-radius: 50%;
+    background: var(--dot);
+    font-size: 1.05rem;
+    transition: transform 0.2s var(--ease-out);
+  }
+
+  .socials li a:active {
+    transform: scale(0.94);
+  }
+
+  .footer__ig {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    margin-top: 0.7rem;
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--burgundy);
+  }
+
+  /* --- link columns ------------------------------------------------------- */
+
+  .footer__heading {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    margin-bottom: 0.9rem;
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    font-weight: 600;
+    text-transform: none;
+    line-height: 1.2;
+  }
+
+  .footer__col ul {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .footer__col a {
+    font-size: var(--step--1);
+    color: var(--ink-60);
+    transition: color 0.18s ease;
+  }
+
+  .footer__col a:hover {
+    color: var(--ink);
+  }
+
+  /* --- signup ------------------------------------------------------------- */
+
+  .signup {
+    padding: 1.5rem;
+    border-radius: var(--r-lg);
+    background: var(--night);
+    color: var(--parchment);
+  }
+
+  .signup__title {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  .signup__body {
+    margin: 0.5rem 0 1rem;
+    font-size: var(--step--1);
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .signup__form {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .signup__form input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem 1rem;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--paper);
+    font: inherit;
+    font-size: var(--step--1);
+  }
+
+  .signup__form input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .signup__form button {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    flex: none;
+    border-radius: 50%;
+    background: var(--blush);
+    color: var(--ink);
+    font-size: 1.1rem;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .signup .signup__form button:active {
+    transform: scale(0.94);
+  }
+
+  .signup__status:not(:empty) {
+    margin-top: 0.75rem;
+    font-size: var(--step--1);
+    color: var(--lime);
+  }
+
+  /* --- base bar ----------------------------------------------------------- */
+
+  .footer__base {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: clamp(2.5rem, 5vw, 3.5rem);
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(10, 10, 10, 0.1);
+    font-size: var(--step--1);
+    color: var(--ink-60);
+  }
+
+  .totop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .totop span {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    background: rgba(10, 10, 10, 0.07);
+    font-size: 0.85rem;
+    transition: transform 0.2s var(--ease-out);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .socials a:hover,
+    .totop:hover span {
+      transform: translateY(-3px);
+    }
+
+    .signup__form button:hover {
+      transform: translateX(2px);
+    }
+
+    .footer__ig:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  @media (min-width: 760px) {
+    .footer__top {
+      grid-template-columns: 1.4fr 1fr 1fr;
+    }
+    .signup {
+      grid-column: span 3;
+    }
+  }
+
+  @media (min-width: 1040px) {
+    .footer__top {
+      grid-template-columns: 1.5fr 1fr 1fr 1.3fr;
+      gap: 3rem;
+    }
+    .signup {
+      grid-column: auto;
+    }
+  }
+</style>

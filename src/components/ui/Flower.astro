@@ -1,0 +1,68 @@
+---
+import { Image } from "astro:assets";
+import { flowers, type FlowerName } from "../../data/flowers";
+
+interface Props {
+  name: FlowerName;
+  /** Rendered width in px — also drives the generated image widths. */
+  size?: number;
+  rotate?: number;
+  /** Seconds for one bob cycle; 0 disables the float. */
+  float?: number;
+  delay?: number;
+  opacity?: number;
+  class?: string;
+}
+
+const {
+  name,
+  size = 96,
+  rotate = 0,
+  float = 7,
+  delay = 0,
+  opacity = 1,
+  class: className = "",
+} = Astro.props;
+
+const src = flowers[name];
+---
+
+<span
+  class={`flower ${float ? "flower--float" : ""} ${className}`}
+  style={`--size:${size}px; --rot:${rotate}deg; --dur:${float}s; --delay:${delay}s; --op:${opacity}`}
+  aria-hidden="true"
+>
+  <Image src={src} alt="" widths={[size, size * 2]} sizes={`${size}px`} loading="lazy" />
+</span>
+
+<style>
+  .flower {
+    display: block;
+    width: var(--size);
+    opacity: var(--op);
+    rotate: var(--rot);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .flower :global(img) {
+    width: 100%;
+    height: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .flower--float :global(img) {
+      animation: bob var(--dur) ease-in-out var(--delay) infinite;
+    }
+  }
+
+  @keyframes bob {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(4deg);
+    }
+  }
+</style>

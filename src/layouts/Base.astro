@@ -1,0 +1,93 @@
+---
+import "@fontsource-variable/josefin-sans";
+import "@fontsource-variable/jost";
+import "../styles/global.css";
+import { site } from "../data/site";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
+// Lets search engines and link previews tie the site to the Instagram account.
+const structured = {
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  name: "The Girlies Club",
+  description,
+  slogan: site.motto,
+  areaServed: site.city,
+  address: { "@type": "PostalAddress", addressLocality: site.city, addressCountry: "MA" },
+  sameAs: [site.instagram],
+  knowsAbout: ["Crochet", "Painting", "Embroidery"],
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>document.documentElement.classList.add("js");</script>
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#b1023d" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="The Girlies Club" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:locale:alternate" content="fr_MA" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(structured)} />
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <slot />
+
+    <script>
+      // Reveal-on-scroll. Anything still hidden when JS is unavailable is
+      // shown by the CSS default, so this is purely additive.
+      const targets = document.querySelectorAll("[data-reveal]");
+
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const io = new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              entry.target.classList.add("is-in");
+              io.unobserve(entry.target);
+            }
+          },
+          { rootMargin: "0px 0px -12% 0px", threshold: 0.08 },
+        );
+        targets.forEach((el) => io.observe(el));
+      } else {
+        targets.forEach((el) => el.classList.add("is-in"));
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  .skip {
+    position: absolute;
+    left: -9999px;
+    z-index: 100;
+    padding: 0.75rem 1.25rem;
+    background: var(--burgundy);
+    color: var(--parchment);
+    border-radius: 0 0 var(--r-sm) 0;
+  }
+
+  .skip:focus {
+    left: 0;
+    top: 0;
+  }
+</style>

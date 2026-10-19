@@ -1,0 +1,247 @@
+---
+import { crafts, site } from "../data/site";
+import Button from "./ui/Button.astro";
+import Icon from "./ui/Icon.astro";
+import Ribbon from "./ui/Ribbon.astro";
+import Sticker from "./ui/Sticker.astro";
+---
+
+<section class="hero" id="top">
+  <div class="hero__ribbons" aria-hidden="true" data-hero-ribbons>
+    <span class="hero__ribbon hero__ribbon--tl">
+      <Ribbon
+        text="It's not just craft — it's laughter, calm, and connection"
+        color="var(--peri)"
+        wave="up"
+        offset={2}
+      />
+    </span>
+    <span class="hero__ribbon hero__ribbon--tr">
+      <Ribbon
+        text="Show up, make something, take it home"
+        color="var(--lime)"
+        wave="down"
+        offset={4}
+      />
+    </span>
+    <span class="hero__ribbon hero__ribbon--bl">
+      <Ribbon
+        text="It's a colourful adventure in mindfulness"
+        color="var(--coral)"
+        wave="down"
+        offset={3}
+      />
+    </span>
+  </div>
+
+  <div class="shell hero__inner">
+    <a class="hero__proof" href={site.instagram} target="_blank" rel="noopener" data-hero>
+      <Icon name="instagram" />
+      <span><b>{site.followers}</b> girlies follow the club on Instagram</span>
+      <Icon name="arrow" class="hero__proofArrow" />
+    </a>
+
+    <h1 class="display display--xl hero__title">
+      <span class="hero__line"><span data-hero-line>Make something</span></span>
+      <span class="hero__line">
+        <span class="tint-heat" data-hero-line>with the girlies</span>
+      </span>
+    </h1>
+
+    <ul class="hero__crafts" aria-label="Crafts we teach">
+      {
+        crafts.map((craft) => (
+          <li lang="fr" data-hero-chip>
+            <span aria-hidden="true">{craft.emoji}</span>
+            {craft.label}
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="lede hero__lede" data-hero>
+      Weekend workshops for women in {site.city}. Every material on the table, a
+      pause café halfway through, zero experience needed.
+    </p>
+
+    <div class="hero__actions" data-hero>
+      <Button href="#sessions" variant="solid" arrow>Book a workshop</Button>
+      <Button href="#private" variant="outline">Bring it to your event</Button>
+    </div>
+
+    <p class="fine hero__fine" lang="fr" data-hero>{site.motto} · 100% femmes</p>
+  </div>
+
+  <span class="hero__sticker" aria-hidden="true" data-hero-sticker data-spin="-1">
+    <Sticker
+      lines={["More yarn", "less", "drama"]}
+      fill="var(--blush)"
+      ink="var(--burgundy-dark)"
+      rotate={-10}
+    />
+  </span>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding-block: clamp(4.5rem, 11vw, 9rem) clamp(4rem, 9vw, 7rem);
+    background: var(--page-wash);
+    isolation: isolate;
+  }
+
+  /* --- decorative ribbons ------------------------------------------------ */
+
+  .hero__ribbons {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+  }
+
+  .hero__ribbon {
+    position: absolute;
+    display: block;
+    width: clamp(560px, 62vw, 920px);
+  }
+
+  .hero__ribbon--tl {
+    top: 1%;
+    left: -16%;
+    rotate: -5deg;
+  }
+
+  .hero__ribbon--tr {
+    top: 0;
+    right: -23%;
+    rotate: 7deg;
+  }
+
+  .hero__ribbon--bl {
+    bottom: -3%;
+    left: -18%;
+    rotate: 4deg;
+  }
+
+  /* --- content ----------------------------------------------------------- */
+
+  .hero__inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
+  }
+
+  .hero__proof {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55em;
+    padding: 0.6rem 1rem 0.6rem 1.15rem;
+    border-radius: var(--r-sm);
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 0.85rem;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .hero__proof b {
+    font-weight: 600;
+  }
+
+  .hero__proof :global(.hero__proofArrow) {
+    opacity: 0.55;
+    transition:
+      transform 0.2s var(--ease-out),
+      opacity 0.2s ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hero__proof:hover :global(.hero__proofArrow) {
+      opacity: 1;
+      transform: translateX(2px);
+    }
+  }
+
+  .hero__proof:active {
+    transform: scale(0.97);
+  }
+
+  .hero__crafts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: -0.25rem;
+  }
+
+  .hero__crafts li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, 0.75);
+    font-size: var(--step--1);
+    font-weight: 500;
+  }
+
+  .hero__title {
+    display: grid;
+    gap: 0.02em;
+    max-width: 16ch;
+  }
+
+  /* Each line is its own clip mask so the words rise up out of it.
+     The padding keeps descenders and the gradient's edge from being cut. */
+  .hero__line {
+    display: block;
+    overflow: clip;
+    padding-bottom: 0.08em;
+    margin-bottom: -0.08em;
+  }
+
+  .hero__line > span {
+    display: inline-block;
+  }
+
+  .hero__lede {
+    max-width: 52ch;
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  /* The bottom-left ribbon sways behind this line — the pill keeps it legible. */
+  .hero__fine {
+    margin-top: -0.4rem;
+    padding: 0.3rem 0.85rem;
+    border-radius: var(--r-pill);
+    background: rgba(255, 250, 244, 0.88);
+    color: var(--ink-60);
+  }
+
+  .hero__sticker {
+    position: absolute;
+    display: block;
+    right: clamp(0.5rem, 4vw, 5rem);
+    bottom: clamp(1rem, 6vw, 4rem);
+    width: clamp(96px, 11vw, 140px);
+  }
+
+  @media (max-width: 720px) {
+    .hero__sticker {
+      display: none;
+    }
+    .hero__ribbon {
+      opacity: 0.65;
+    }
+  }
+</style>

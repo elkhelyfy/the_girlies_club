@@ -1,0 +1,282 @@
+---
+import { Image } from "astro:assets";
+import logo from "../assets/logo-wordmark.png";
+import { nav, site } from "../data/site";
+import Button from "./ui/Button.astro";
+import Icon from "./ui/Icon.astro";
+---
+
+<div class="ticker">
+  <Icon name="spark" />
+  <span>New: <span lang="fr">broderie</span> joins the table</span>
+  <span class="ticker__sep" aria-hidden="true">—</span>
+  <a href="#sessions">Save a seat</a>
+</div>
+
+<header class="header" data-header>
+  <div class="shell header__inner">
+    <a class="wordmark" href="#top" aria-label={`${site.name} — home`}>
+      <Image class="wordmark__mark" src={logo} alt={site.name} densities={[1, 2]} width={124} loading="eager" />
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      {
+        nav.map((item) => (
+          <a class="nav__link" href={item.href}>
+            {item.label}
+            {item.dot && <i class="nav__dot" aria-hidden="true" />}
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="header__cta">
+      <Button href="#sessions" variant="cream" size="sm">Book a seat</Button>
+    </div>
+
+    <button
+      class="burger"
+      data-burger
+      aria-label="Menu"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+    >
+      <span class="burger__bar"></span>
+      <span class="burger__bar"></span>
+    </button>
+  </div>
+
+  <div class="drawer" id="mobile-nav" data-drawer hidden>
+    <nav aria-label="Mobile">
+      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+      <a class="drawer__cta" href="#sessions">Book a seat</a>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const header = document.querySelector("[data-header]");
+  const burger = document.querySelector("[data-burger]");
+  const drawer = document.querySelector("[data-drawer]");
+
+  const setOpen = (open: boolean) => {
+    burger?.setAttribute("aria-expanded", String(open));
+    if (drawer instanceof HTMLElement) drawer.hidden = !open;
+    header?.classList.toggle("is-open", open);
+  };
+
+  burger?.addEventListener("click", () => {
+    setOpen(burger.getAttribute("aria-expanded") !== "true");
+  });
+
+  drawer?.querySelectorAll("a").forEach((a) => a.addEventListener("click", () => setOpen(false)));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || burger?.getAttribute("aria-expanded") !== "true") return;
+    setOpen(false);
+    (burger as HTMLElement).focus();
+  });
+
+  // Shrink + shadow once the page has scrolled past the hero lip.
+  const onScroll = () => header?.classList.toggle("is-stuck", window.scrollY > 24);
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+</script>
+
+<style>
+  .ticker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    background: var(--burgundy-deep);
+    color: var(--parchment);
+    font-size: 0.82rem;
+    text-align: center;
+  }
+
+  .ticker__sep {
+    opacity: 0.6;
+  }
+
+  .ticker a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    /* Solid rather than blurred: backdrop-filter on a sticky element
+       triggers compositing artifacts against the ribbon layers below. */
+    background: var(--burgundy);
+    color: var(--parchment);
+    border-bottom: 1px solid transparent;
+    transition:
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .header.is-stuck {
+    border-bottom-color: var(--parchment-line);
+    box-shadow: 0 8px 30px -20px rgba(74, 1, 26, 0.9);
+  }
+
+  .header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    min-height: 74px;
+  }
+
+  /* --- wordmark ---------------------------------------------------------- */
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    flex: none;
+  }
+
+  .wordmark__mark {
+    width: auto;
+    height: clamp(46px, 6vw, 58px);
+  }
+
+  /* --- nav --------------------------------------------------------------- */
+
+  .nav {
+    display: none;
+    gap: 1.6rem;
+  }
+
+  .nav__link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    font-size: 0.95rem;
+    color: var(--parchment-70);
+    white-space: nowrap;
+    transition: color 0.2s ease;
+  }
+
+  /* scaleX instead of animating `right` — stays on the compositor. */
+  .nav__link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -6px;
+    height: 1.5px;
+    background: var(--parchment);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s var(--ease-out);
+  }
+
+  .nav__link:hover,
+  .nav__link:focus-visible {
+    color: var(--parchment);
+  }
+
+  .nav__link:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .nav__link:hover::after {
+      transform: scaleX(1);
+    }
+  }
+
+  .nav__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--butter);
+  }
+
+  .header__cta {
+    display: none;
+  }
+
+  /* --- burger ------------------------------------------------------------ */
+
+  .burger {
+    display: grid;
+    gap: 5px;
+    padding: 0.6rem 0.4rem;
+  }
+
+  .burger__bar {
+    display: block;
+    width: 24px;
+    height: 1.8px;
+    background: var(--parchment);
+    transition: transform 0.24s var(--ease-out);
+  }
+
+  .header.is-open .burger__bar:first-child {
+    transform: translateY(3.4px) rotate(45deg);
+  }
+
+  .header.is-open .burger__bar:last-child {
+    transform: translateY(-3.4px) rotate(-45deg);
+  }
+
+  .drawer {
+    border-top: 1px solid var(--parchment-line);
+    background: var(--burgundy);
+    color: var(--parchment);
+    transition:
+      opacity 0.22s var(--ease-out),
+      transform 0.22s var(--ease-out);
+  }
+
+  /* Slides down from under the bar on open; closing is instant via [hidden]. */
+  @starting-style {
+    .drawer:not([hidden]) {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+
+  .drawer nav {
+    display: grid;
+    gap: 0.25rem;
+    padding: 1rem var(--gutter) 1.5rem;
+  }
+
+  .drawer a {
+    padding: 0.7rem 0;
+    font-size: 1.05rem;
+    border-bottom: 1px solid var(--parchment-line);
+  }
+
+  .drawer__cta {
+    margin-top: 0.75rem;
+    padding: 0.85rem 1rem !important;
+    border: 0 !important;
+    border-radius: var(--r-sm);
+    background: var(--parchment);
+    color: var(--burgundy);
+    text-align: center;
+  }
+
+  @media (min-width: 1020px) {
+    .nav,
+    .header__cta {
+      display: flex;
+    }
+    .burger,
+    .drawer {
+      display: none;
+    }
+    .header__inner {
+      min-height: 82px;
+    }
+  }
+</style>

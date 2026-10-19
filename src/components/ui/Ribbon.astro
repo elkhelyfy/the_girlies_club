@@ -1,0 +1,84 @@
+---
+/**
+ * Wavy ribbon with the copy running along the curve.
+ *
+ * The Figma source ships these as outlined vector text, which can't be
+ * re-worded. Rebuilding them as a stroked path plus a <textPath> on the same
+ * geometry keeps the look and leaves the copy editable.
+ *
+ * The phrase is repeated along the whole curve: the ribbons hang off the
+ * page edges, so a single copy near the start of the path is mostly
+ * off-screen. Motion.astro scrolls the repeats as a marquee, moving one
+ * phrase-length per loop so the seam never shows.
+ */
+interface Props {
+  text: string;
+  color?: string;
+  /** `down` starts high and dips; `up` is its mirror. */
+  wave?: "down" | "up";
+  /** Where the text starts along the curve, in percent. */
+  offset?: number;
+  /** How many copies of the phrase run along the path. */
+  repeat?: number;
+  class?: string;
+}
+
+const {
+  text,
+  color = "var(--peri)",
+  wave = "down",
+  offset = 4,
+  repeat = 4,
+  class: className = "",
+} = Astro.props;
+
+const SEP = " ✦ ";
+const runs = Array.from({ length: repeat }, () => `${text}${SEP}`).join("");
+
+const CURVES = {
+  down: "M 0 60 C 150 60 190 200 340 200 S 530 20 680 20 S 870 190 1020 190 S 1180 50 1320 50",
+  up: "M 0 190 C 150 190 190 50 340 50 S 530 220 680 220 S 870 40 1020 40 S 1180 180 1320 180",
+} as const;
+
+// Deterministic id so repeat builds produce identical markup.
+const uid = `rib-${[...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36)}-${wave}`;
+---
+
+<svg
+  class={`ribbon ${className}`}
+  viewBox="0 -10 1320 280"
+  fill="none"
+  role="img"
+  aria-label={text}
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <path id={uid} d={CURVES[wave]} />
+  <use href={`#${uid}`} class="ribbon__body" style={`stroke:${color}`} />
+  <text class="ribbon__text" dy="7" data-repeat={repeat}>
+    <textPath href={`#${uid}`} startOffset={`${offset}%`}>{runs}</textPath>
+  </text>
+</svg>
+
+<style>
+  .ribbon {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .ribbon__body {
+    stroke-width: 58;
+    stroke-linecap: round;
+    fill: none;
+  }
+
+  .ribbon__text {
+    font-family: var(--font-body);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: 0.17em;
+    text-transform: uppercase;
+    fill: var(--ink);
+  }
+</style>

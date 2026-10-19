@@ -1,0 +1,151 @@
+---
+import { closing } from "../data/site";
+import Button from "./ui/Button.astro";
+import Ribbon from "./ui/Ribbon.astro";
+---
+
+<section class="section section--night closing">
+  <div class="closing__ribbons" aria-hidden="true">
+    <span class="closing__ribbon closing__ribbon--tr">
+      <Ribbon
+        text="Show up, make something, take it home"
+        color="var(--lime)"
+        wave="down"
+        offset={3}
+      />
+    </span>
+    <span class="closing__ribbon closing__ribbon--br">
+      <Ribbon
+        text="It's not just craft — it's laughter, calm, and connection"
+        color="var(--peri)"
+        wave="up"
+        offset={2}
+      />
+    </span>
+    <span class="closing__ribbon closing__ribbon--bl">
+      <Ribbon
+        text="Make something beautiful, one stitch at a time"
+        color="var(--coral)"
+        wave="down"
+        offset={4}
+      />
+    </span>
+  </div>
+
+  <div class="shell center-col closing__inner">
+    <h2 class="display display--lg closing__title" data-reveal>
+      {closing.title[0]}<br />
+      <span class="tint-heat">{closing.title[1]}</span>
+    </h2>
+
+    <p class="lede closing__lede" data-reveal>{closing.body}</p>
+
+    <ul class="closing__chips" data-reveal>
+      {
+        closing.chips.map((chip) => (
+          <li>{chip.label}</li>
+        ))
+      }
+    </ul>
+
+    <div data-reveal>
+      <Button href="#sessions" variant="cream" arrow>{closing.cta}</Button>
+    </div>
+
+    <p class="closing__fine" data-reveal>{closing.fine}</p>
+  </div>
+</section>
+
+<style>
+  .closing {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    padding-block: clamp(5rem, 10vw, 8.5rem);
+  }
+
+  .closing::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      120% 80% at 50% 40%,
+      rgba(210, 19, 84, 0.34),
+      transparent 70%
+    );
+    z-index: -2;
+  }
+
+  .closing__ribbons {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+  }
+
+  .closing__ribbon {
+    position: absolute;
+    display: block;
+    width: clamp(520px, 56vw, 880px);
+  }
+
+  .closing__ribbon--tr {
+    top: -10%;
+    right: -26%;
+    rotate: 8deg;
+  }
+
+  .closing__ribbon--br {
+    bottom: -4%;
+    right: -24%;
+    rotate: -6deg;
+  }
+
+  .closing__ribbon--bl {
+    bottom: -8%;
+    left: -28%;
+    rotate: 5deg;
+  }
+
+  .closing__inner {
+    position: relative;
+    z-index: 1;
+    gap: 1.5rem;
+  }
+
+  .closing__title {
+    max-width: 18ch;
+  }
+
+  .closing__lede {
+    max-width: 54ch;
+  }
+
+  .closing__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.65rem;
+  }
+
+  .closing__chips li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.6rem 1.05rem;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: var(--step--1);
+  }
+
+  .closing__fine {
+    font-size: var(--step--1);
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  @media (max-width: 720px) {
+    .closing__ribbon {
+      opacity: 0.55;
+    }
+  }
+</style>

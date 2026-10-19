@@ -1,17 +1,41 @@
 ---
-
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Hero from "../components/Hero.astro";
+import Stats from "../components/Stats.astro";
+import Pillars from "../components/Pillars.astro";
+import Sessions from "../components/Sessions.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import CommunityWall from "../components/CommunityWall.astro";
+import PrivateEvents from "../components/PrivateEvents.astro";
+import Membership from "../components/Membership.astro";
+import Testimonials from "../components/Testimonials.astro";
+import Faq from "../components/Faq.astro";
+import Closing from "../components/Closing.astro";
+import Footer from "../components/Footer.astro";
+import Motion from "../components/Motion.astro";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Base
+  title="The Girlies Club — craft workshops & pause café in Casablanca"
+  description="Crochet, peinture and broderie workshops for women in Casablanca. Small tables, every material included, pause café halfway through. Private events too — on se déplace."
+>
+  <Header />
+
+  <main id="main">
+    <Hero />
+    <Stats />
+    <Pillars />
+    <Sessions />
+    <HowItWorks />
+    <CommunityWall />
+    <PrivateEvents />
+    <Membership />
+    <Testimonials />
+    <Faq />
+    <Closing />
+  </main>
+
+  <Footer />
+  <Motion />
+</Base>

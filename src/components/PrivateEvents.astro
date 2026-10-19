@@ -1,0 +1,207 @@
+---
+import { Image } from "astro:assets";
+import { privateEvents, site } from "../data/site";
+import Button from "./ui/Button.astro";
+import Eyebrow from "./ui/Eyebrow.astro";
+import Icon from "./ui/Icon.astro";
+import Sticker from "./ui/Sticker.astro";
+---
+
+<section class="section private" id="private">
+  <div class="shell private__inner">
+    <div class="private__media" data-reveal>
+      <Image
+        src={privateEvents.image}
+        alt={privateEvents.alt}
+        widths={[420, 640, 900]}
+        sizes="(min-width: 960px) 44vw, 92vw"
+        loading="lazy"
+      />
+      <span class="private__chip">
+        <Icon name="pin" />
+        Based in {site.city}
+      </span>
+      <span class="private__sticker" aria-hidden="true" data-spin="1">
+        <Sticker lines={["On se", "déplace"]} fill="var(--lime)" ink="var(--ink)" rotate={-10} />
+      </span>
+    </div>
+
+    <div class="private__body">
+      <header class="private__head" data-reveal>
+        <Eyebrow icon="🎉">Private events</Eyebrow>
+        <h2 class="display display--lg">
+          Your party,<br />
+          <span class="tint-heat">our table</span>
+        </h2>
+        <p class="lede">
+          We come to you with everything — so the birthday, the EVJF or the team day turns into
+          two hours of making something together, not just another dinner.
+        </p>
+      </header>
+
+      <ul class="private__occasions" aria-label="Occasions we host" data-reveal>
+        {privateEvents.occasions.map((occasion) => <li>{occasion}</li>)}
+      </ul>
+
+      <ol class="private__points">
+        {
+          privateEvents.points.map((point, i) => (
+            <li data-reveal style={`--reveal-delay:${i * 80}ms`}>
+              <span class="private__num">{String(i + 1).padStart(2, "0")}</span>
+              <span>
+                <b>{point.title}</b>
+                {point.body}
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+
+      <div class="private__cta" data-reveal>
+        <Button href={site.dm} external variant="solid" arrow>Plan it with us on Instagram</Button>
+        <p class="fine">Send the date, the headcount and the craft — we reply with a quote.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .private {
+    background: var(--paper);
+    overflow: hidden;
+  }
+
+  .private__inner {
+    display: grid;
+    gap: clamp(2.5rem, 5vw, 4.5rem);
+    align-items: center;
+  }
+
+  /* --- photo ------------------------------------------------------------- */
+
+  .private__media {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    max-width: 520px;
+    width: 100%;
+    margin-inline: auto;
+    border: var(--edge);
+    border-radius: var(--r-xl);
+    background: var(--blush);
+    box-shadow: var(--float);
+    rotate: -1.5deg;
+  }
+
+  .private__media :global(img) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--r-xl) - 1.5px);
+  }
+
+  .private__chip {
+    position: absolute;
+    left: 1rem;
+    bottom: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.45rem 0.85rem;
+    border-radius: var(--r-sm);
+    background: rgba(255, 255, 255, 0.94);
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+
+  .private__sticker {
+    position: absolute;
+    top: -1.75rem;
+    right: -1rem;
+    display: block;
+    width: clamp(96px, 12vw, 128px);
+  }
+
+  /* --- copy -------------------------------------------------------------- */
+
+  .private__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
+
+  .private__head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.15rem;
+  }
+
+  .private__occasions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .private__occasions li {
+    padding: 0.45rem 0.9rem;
+    border: 1px solid rgba(10, 10, 10, 0.14);
+    border-radius: var(--r-pill);
+    background: var(--rose-mist);
+    font-size: var(--step--1);
+  }
+
+  .private__points {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .private__points li {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    border: var(--edge);
+    border-radius: var(--r-md);
+    background: linear-gradient(150deg, var(--burgundy-tint) 0%, #fff7ed 100%);
+    font-size: var(--step--1);
+    line-height: 1.55;
+    color: var(--ink-70);
+  }
+
+  .private__points b {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-size: var(--step-0);
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .private__num {
+    flex: none;
+    padding-top: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: var(--burgundy);
+  }
+
+  .private__cta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+
+  @media (min-width: 960px) {
+    .private__inner {
+      grid-template-columns: 0.9fr 1.1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .private__sticker {
+      right: 0.25rem;
+    }
+  }
+</style>

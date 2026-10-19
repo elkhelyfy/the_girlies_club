@@ -1,0 +1,238 @@
+---
+/**
+ * Page-level GSAP choreography. Everything here is decorative: the page is
+ * complete without it, and none of it runs under prefers-reduced-motion.
+ *
+ * The CSS `[data-reveal]` fades stay as they are — this file only adds what
+ * CSS can't do: a sequenced hero entrance, scroll-scrubbed parallax, text
+ * flowing along the ribbons, and the stat count-up.
+ */
+---
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Same curve as --ease-out in global.css, so GSAP and CSS motion match.
+  const EASE = "expo.out";
+
+  const RIBBONS = ".hero__ribbon, .pass__ribbon, .closing__ribbon"; // for parallax
+
+  const mm = gsap.matchMedia();
+
+  const MOTION = "(prefers-reduced-motion: no-preference)";
+
+  mm.add(MOTION, (context) => {
+      document.documentElement.classList.add("gsap-ready");
+
+      // --- hero entrance -------------------------------------------------
+      // One timeline, overlapping steps: title rises out of its line masks,
+      // then chips, copy and buttons follow close behind. ~1.3s total.
+      const intro = gsap.timeline({ defaults: { ease: EASE } });
+
+      intro
+        .fromTo(
+          "[data-hero-line]",
+          { yPercent: 105, autoAlpha: 1 },
+          { yPercent: 0, autoAlpha: 1, duration: 1.1, stagger: 0.12 },
+        )
+        .fromTo(
+          ".hero__proof",
+          { y: -10, autoAlpha: 0 },
+          { y: 0, autoAlpha: 1, duration: 0.7 },
+          0.1,
+        )
+        .fromTo(
+          "[data-hero-chip]",
+          { y: 12, scale: 0.94, autoAlpha: 0 },
+          { y: 0, scale: 1, autoAlpha: 1, duration: 0.6, stagger: 0.06 },
+          0.45,
+        )
+        .fromTo(
+          ".hero__lede, .hero__actions, .hero__fine",
+          { y: 16, autoAlpha: 0 },
+          { y: 0, autoAlpha: 1, duration: 0.8, stagger: 0.08 },
+          0.55,
+        )
+        .set("[data-hero-ribbons]", { visibility: "visible" }, 0)
+        .fromTo(
+          "[data-hero-sticker]",
+          { scale: 0.8, rotation: -20, autoAlpha: 0 },
+          { scale: 1, rotation: 0, autoAlpha: 1, duration: 0.7, ease: "back.out(2)" },
+          0.8,
+        );
+
+      // --- hero ribbons draw themselves on --------------------------------
+      // Like a ribbon being laid across the table: the stroke grows along its
+      // own curve, then the words fade in once there's ribbon to sit on.
+      // ease-in-out because this is movement across the screen, not an entrance.
+      gsap.utils.toArray<SVGSVGElement>(".hero__ribbon svg").forEach((svg, i) => {
+        const body = svg.querySelector(".ribbon__body");
+        const words = svg.querySelector(".ribbon__text");
+        const length = svg.querySelector("path")?.getTotalLength() ?? 0;
+        const at = 0.1 + i * 0.18;
+
+        intro
+          .fromTo(
+            body,
+            { strokeDasharray: length, strokeDashoffset: length },
+            {
+              strokeDashoffset: 0,
+              duration: 1.6,
+              ease: "power2.inOut",
+              clearProps: "strokeDasharray,strokeDashoffset",
+            },
+            at,
+          )
+          .fromTo(words, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: "power1.out" }, at + 0.8);
+      });
+
+      // The bottom-left ribbon keeps breathing after it lands — a slow sway
+      // on the inner SVG, so it never fights the scroll parallax on its wrapper.
+      gsap.to(".hero__ribbon--bl svg", {
+        y: -14,
+        rotation: 2.5,
+        transformOrigin: "35% 50%",
+        duration: 4.5,
+        ease: "sine.inOut",
+        yoyo: true,
+        repeat: -1,
+        delay: 1.6,
+      });
+
+      // --- ribbon marquee ---------------------------------------------------
+      // The phrase is printed several times along each path (Ribbon.astro).
+      // Sliding startOffset by exactly one phrase-length per loop makes the
+      // seam invisible, and every phrase passes through the on-screen part of
+      // the ribbon. Linear: this is constant motion, not an event.
+      (context as any).add("marquee", () => {
+        const marquees: gsap.core.Tween[] = [];
+        const SPEED = 42; // path units per second
+
+        gsap.utils.toArray<SVGSVGElement>(".ribbon").forEach((svg, i) => {
+          const text = svg.querySelector<SVGTextElement>(".ribbon__text");
+          const textPath = svg.querySelector("textPath");
+          if (!text || !textPath) return;
+
+          const unit = text.getComputedTextLength() / (Number(text.dataset.repeat) || 1);
+          const [from, to] = i % 2 ? [-unit, 0] : [0, -unit];
+
+          const tween = gsap.fromTo(
+            textPath,
+            { attr: { startOffset: from } },
+            { attr: { startOffset: to }, duration: unit / SPEED, ease: "none", repeat: -1, paused: true },
+          );
+          marquees.push(tween);
+
+          // Only spend frames on ribbons that are actually on screen.
+          ScrollTrigger.create({
+            trigger: svg.closest("section"),
+            start: "top bottom",
+            end: "bottom top",
+            onToggle: (self) => (self.isActive ? tween.play() : tween.pause()),
+          });
+        });
+
+        // Scrolling briefly speeds the ribbons up, then they ease back.
+        const speed = { value: 1 };
+        const apply = () => marquees.forEach((t) => t.timeScale(speed.value));
+
+        ScrollTrigger.create({
+          onUpdate: (self) => {
+            const boost = gsap.utils.clamp(1, 4, 1 + Math.abs(self.getVelocity()) / 350);
+            gsap.timeline({ onUpdate: apply })
+              .to(speed, { value: boost, duration: 0.25, ease: "power2.out", overwrite: true })
+              .to(speed, { value: 1, duration: 1.2, ease: "power2.out" });
+          },
+        });
+      });
+
+      // Measure only once the web font is in, or the loop length is wrong and
+      // the text visibly jumps at the seam.
+      document.fonts.ready.then(() => (context as any).marquee?.());
+
+      // --- stickers turn as you scroll past --------------------------------
+      // Turns the inner sticker, so it never fights the hero sticker's
+      // entrance tween on the wrapper.
+      gsap.utils.toArray<HTMLElement>("[data-spin]").forEach((sticker) => {
+        const dir = Number(sticker.dataset.spin) || 1;
+        gsap.to(sticker.firstElementChild, {
+          rotation: `+=${dir * 28}`,
+          ease: "none",
+          scrollTrigger: {
+            trigger: sticker.closest("section") ?? sticker,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: 1,
+          },
+        });
+      });
+
+      // --- stats count up once, the first time they're seen ---------------
+      // Only numeric values animate ("Zero" stays put). The real value lives
+      // in an sr-only sibling, so screen readers never hear the ticking.
+      gsap.utils.toArray<HTMLElement>("[data-count]").forEach((el) => {
+        const final = el.dataset.count ?? "";
+        const match = final.match(/^([\d.]+)(.*)$/);
+        if (!match) return;
+
+        const target = parseFloat(match[1]);
+        const suffix = match[2];
+        const decimals = match[1].includes(".") ? match[1].split(".")[1].length : 0;
+        const counter = { value: 0 };
+
+        el.textContent = `${(0).toFixed(decimals)}${suffix}`;
+
+        gsap.to(counter, {
+          value: target,
+          duration: 1.4,
+          ease: "power3.out",
+          scrollTrigger: { trigger: el, start: "top 90%", once: true },
+          onUpdate: () => {
+            el.textContent = `${counter.value.toFixed(decimals)}${suffix}`;
+          },
+          onComplete: () => {
+            el.textContent = final;
+          },
+        });
+      });
+
+      return () => {
+        document.documentElement.classList.remove("gsap-ready");
+        // A count interrupted by a media-query change must not stay mid-tick.
+        document.querySelectorAll<HTMLElement>("[data-count]").forEach((el) => {
+          el.textContent = el.dataset.count ?? "";
+        });
+      };
+  });
+
+  // Parallax only where there's room for it — on phones the ribbons sit
+  // behind the copy and drifting them just adds noise.
+  mm.add(`${MOTION} and (min-width: 721px)`, () => {
+    gsap.utils.toArray<HTMLElement>(RIBBONS).forEach((ribbon, i) => {
+      gsap.to(ribbon, {
+        y: (i % 2 ? 1 : -1) * 70,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ribbon.closest("section"),
+          start: "top bottom",
+          end: "bottom top",
+          scrub: 0.6,
+        },
+      });
+    });
+
+    // The tulip beside the sessions drifts upward.
+    gsap.to("[data-drift]", {
+      y: -120,
+      ease: "none",
+      scrollTrigger: { trigger: "#sessions", start: "top bottom", end: "bottom top", scrub: 1 },
+    });
+  });
+
+  // Images load lazily and shift the page; re-measure trigger positions once
+  // everything has settled.
+  window.addEventListener("load", () => ScrollTrigger.refresh());
+</script>

@@ -1,0 +1,56 @@
+---
+import { stats } from "../data/site";
+---
+
+<section class="stats">
+  <div class="shell stats__grid">
+    {
+      stats.map((stat, i) => (
+        <div class="stat" data-reveal style={`--reveal-delay:${i * 70}ms`}>
+          <p class="stat__value">
+            <span class="sr-only">{stat.value}</span>
+            <span aria-hidden="true" data-count={stat.value}>{stat.value}</span>
+          </p>
+          <p class="stat__label">{stat.label}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .stats {
+    padding-block: clamp(2rem, 4vw, 3.25rem);
+    background: #fbfafa;
+    border-block: 1px solid rgba(10, 10, 10, 0.06);
+  }
+
+  .stats__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem 1rem;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat__value {
+    font-family: var(--font-body);
+    font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .stat__label {
+    margin-top: 0.35rem;
+    font-size: var(--step--1);
+    color: var(--ink-60);
+  }
+
+  @media (min-width: 720px) {
+    .stats__grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+</style>

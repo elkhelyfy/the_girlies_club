@@ -1,0 +1,129 @@
+---
+import { Image } from "astro:assets";
+import { testimonials } from "../data/site";
+import Eyebrow from "./ui/Eyebrow.astro";
+import Icon from "./ui/Icon.astro";
+---
+
+<section class="section words">
+  <div class="shell">
+    <header class="center-col words__head" data-reveal>
+      <Eyebrow icon="⭐">What they said after</Eyebrow>
+      <h2 class="display display--lg">The energy speaks<br />for itself</h2>
+    </header>
+
+    <ul class="words__grid">
+      {
+        testimonials.map((t, i) => (
+          <li
+            class="quote"
+            data-reveal
+            style={`--surface:${t.surface}; --reveal-delay:${(i % 3) * 100}ms`}
+          >
+            <span class="quote__mark" aria-hidden="true">
+              <Icon name="quote" />
+            </span>
+
+            <blockquote class="quote__text">{t.quote}</blockquote>
+
+            <figcaption class="quote__by">
+              <Image
+                src={t.avatar}
+                alt=""
+                width={44}
+                height={44}
+                loading="lazy"
+                aria-hidden="true"
+              />
+              <span>
+                <b>{t.name}</b>
+                <em>{t.role}</em>
+              </span>
+            </figcaption>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .words {
+    background: linear-gradient(180deg, var(--burgundy-tint) 0%, #fff7ed 60%, #ffffff 100%);
+  }
+
+  .words__head {
+    gap: 1.15rem;
+    margin-bottom: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .words__grid {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  .quote {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: clamp(1.4rem, 3vw, 1.9rem);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--float);
+  }
+
+  .quote__mark {
+    font-size: 1.5rem;
+    opacity: 0.75;
+  }
+
+  .quote__text {
+    margin: 0;
+    font-size: var(--step-0);
+    line-height: 1.55;
+  }
+
+  .quote__by {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: auto;
+    padding-top: 0.5rem;
+  }
+
+  .quote__by :global(img) {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+  }
+
+  .quote__by span {
+    display: grid;
+    line-height: 1.3;
+  }
+
+  .quote__by b {
+    font-weight: 500;
+  }
+
+  .quote__by em {
+    font-size: var(--step--1);
+    font-style: normal;
+    color: var(--ink-60);
+  }
+
+  @media (min-width: 680px) {
+    .words__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1020px) {
+    .words__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+</style>

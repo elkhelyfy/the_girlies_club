@@ -1,0 +1,141 @@
+---
+interface Props {
+  href?: string;
+  variant?: "solid" | "outline" | "light" | "heat" | "cream";
+  size?: "sm" | "md";
+  arrow?: boolean;
+  /** Opens in a new tab — used for the Instagram DM links. */
+  external?: boolean;
+  class?: string;
+  type?: "button" | "submit";
+}
+
+const {
+  href,
+  variant = "solid",
+  size = "md",
+  arrow = false,
+  external = false,
+  class: className = "",
+  type = "button",
+} = Astro.props;
+
+const Tag = href ? "a" : "button";
+const linkProps = href
+  ? { href, ...(external ? { target: "_blank", rel: "noopener" } : {}) }
+  : { type };
+---
+
+<Tag
+  {...linkProps}
+  class={`btn btn--${variant} btn--${size} ${className}`}
+>
+  <span><slot /></span>
+  {
+    arrow && (
+      <svg class="btn__arrow" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path
+          d="M3 10h13M11 5l5 5-5 5"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    )
+  }
+</Tag>
+
+<style>
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55em;
+    border-radius: var(--r-sm);
+    font-family: var(--font-body);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    text-align: center;
+    transition:
+      transform var(--press) var(--ease-out),
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      color 0.2s ease;
+    user-select: none;
+  }
+
+  .btn--md {
+    padding: 0.95rem 1.6rem;
+    font-size: var(--step-0);
+  }
+
+  .btn--sm {
+    padding: 0.62rem 1.1rem;
+    font-size: var(--step--1);
+  }
+
+  .btn--solid {
+    background: var(--burgundy);
+    color: var(--parchment);
+  }
+
+  .btn--outline {
+    background: var(--paper);
+    color: var(--burgundy);
+    box-shadow: inset 0 0 0 1.5px var(--burgundy);
+  }
+
+  .btn--light {
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  .btn--heat {
+    background: var(--heat);
+    color: var(--paper);
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+  }
+
+  /* For use on the burgundy chrome — reads as the logo's cream on its own field. */
+  .btn--cream {
+    background: var(--parchment);
+    color: var(--burgundy);
+  }
+
+  /* Hover lift only where a real pointer exists — on touch it sticks after tap. */
+  @media (hover: hover) and (pointer: fine) {
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 22px -12px rgba(10, 10, 10, 0.7);
+    }
+
+    .btn--outline:hover {
+      box-shadow:
+        inset 0 0 0 1.5px var(--burgundy),
+        0 10px 22px -12px rgba(77, 1, 25, 0.75);
+    }
+
+    .btn--heat:hover {
+      box-shadow:
+        inset 0 0 0 1.5px var(--ink),
+        0 10px 22px -12px rgba(230, 0, 118, 0.8);
+    }
+
+    .btn:hover .btn__arrow {
+      transform: translateX(3px);
+    }
+  }
+
+  /* Press feedback: the button confirms it heard you before anything loads. */
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn__arrow {
+    width: 1.1em;
+    height: 1.1em;
+    transition: transform 0.2s var(--ease-out);
+  }
+</style>

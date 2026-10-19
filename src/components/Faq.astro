@@ -1,0 +1,189 @@
+---
+import { faqs, site } from "../data/site";
+import Button from "./ui/Button.astro";
+import Eyebrow from "./ui/Eyebrow.astro";
+import Icon from "./ui/Icon.astro";
+---
+
+<section class="section faq" id="faq">
+  <div class="shell faq__inner">
+    <header class="faq__head" data-reveal>
+      <Eyebrow icon="💬">Questions</Eyebrow>
+      <h2 class="display display--lg">
+        Good<br />
+        <span class="tint-heat">to know</span>
+      </h2>
+      <p class="lede">The things girlies ask us most in DMs. Anything else, just message us.</p>
+
+      <div class="faq__ask">
+        <p>
+          <b>Still wondering?</b>
+          We answer every DM, usually the same day.
+        </p>
+        <Button href={site.dm} external variant="solid" size="sm" arrow>Message {site.handle}</Button>
+      </div>
+    </header>
+
+    <div class="faq__list" data-reveal>
+      {
+        faqs.map((item, i) => (
+          <details class="faq__item" name="faq" open={i === 0}>
+            <summary>
+              <span>{item.q}</span>
+              <span class="faq__toggle" aria-hidden="true">
+                <Icon name="plus" />
+              </span>
+            </summary>
+            <p class="faq__answer">{item.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .faq {
+    background: var(--paper);
+  }
+
+  .faq__inner {
+    display: grid;
+    gap: clamp(2rem, 5vw, 4rem);
+    align-items: start;
+  }
+
+  .faq__head {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.15rem;
+  }
+
+  .faq__ask {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.9rem;
+    margin-top: 0.5rem;
+    padding: 1.2rem 1.3rem;
+    border: var(--edge);
+    border-radius: var(--r-lg);
+    background: var(--pink-soft);
+    font-size: var(--step--1);
+  }
+
+  .faq__ask b {
+    display: block;
+    font-size: var(--step-0);
+    font-weight: 500;
+  }
+
+  /* --- accordion --------------------------------------------------------- */
+
+  .faq__list {
+    display: grid;
+    gap: 0.7rem;
+    /* Lets ::details-content transition to `auto` where supported;
+       elsewhere the panel simply opens instantly. */
+    interpolate-size: allow-keywords;
+  }
+
+  .faq__item {
+    border: var(--edge);
+    border-radius: var(--r-md);
+    background: var(--paper);
+    transition: background-color 0.2s ease;
+  }
+
+  .faq__item[open] {
+    background: var(--rose-mist);
+  }
+
+  .faq__item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.05rem 1.2rem;
+    font-size: var(--step-0);
+    font-weight: 500;
+    line-height: 1.35;
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .faq__item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq__item summary:focus-visible {
+    outline-offset: -3px;
+    border-radius: var(--r-md);
+  }
+
+  .faq__toggle {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    background: var(--burgundy-tint);
+    color: var(--burgundy);
+    transition:
+      transform 0.25s var(--ease-out),
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  /* The plus turns into a close mark rather than swapping icons. */
+  .faq__item[open] .faq__toggle {
+    transform: rotate(45deg);
+    background: var(--burgundy);
+    color: var(--parchment);
+  }
+
+  .faq__answer {
+    padding: 0 1.2rem 1.15rem;
+    max-width: 60ch;
+    color: var(--ink-70);
+    font-size: var(--step--1);
+    line-height: 1.65;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .faq__item::details-content {
+      block-size: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition:
+        block-size 0.25s var(--ease-out),
+        opacity 0.2s ease,
+        content-visibility 0.25s allow-discrete;
+    }
+
+    .faq__item[open]::details-content {
+      block-size: auto;
+      opacity: 1;
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .faq__item:not([open]) summary:hover .faq__toggle {
+      background: color-mix(in srgb, var(--burgundy) 18%, white);
+    }
+  }
+
+  @media (min-width: 960px) {
+    .faq__inner {
+      grid-template-columns: 0.8fr 1.2fr;
+    }
+
+    .faq__head {
+      position: sticky;
+      top: 7.5rem;
+    }
+  }
+</style>

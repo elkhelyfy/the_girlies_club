@@ -1,0 +1,305 @@
+---
+import { Image } from "astro:assets";
+import maker from "../assets/story/maker.png";
+import { membership, price, site } from "../data/site";
+import Button from "./ui/Button.astro";
+import Eyebrow from "./ui/Eyebrow.astro";
+import Icon from "./ui/Icon.astro";
+import Ribbon from "./ui/Ribbon.astro";
+import Sticker from "./ui/Sticker.astro";
+---
+
+<section class="section section--wash pass" id="membership">
+  <span class="pass__ribbon" aria-hidden="true">
+    <Ribbon
+      text="Show up, make something, take it home"
+      color="var(--lime)"
+      wave="down"
+      offset={3}
+    />
+  </span>
+
+  <div class="shell">
+    <header class="center-col pass__head" data-reveal>
+      <Eyebrow icon="🎟️">{membership.eyebrow}</Eyebrow>
+      <h2 class="display display--lg">
+        Never run out of<br />
+        <span class="tint-heat">things to make</span>
+      </h2>
+      <p class="lede">Two sessions a month, any craft you like. Same table, same girlies.</p>
+    </header>
+
+    <article class="plan" data-reveal>
+      <div class="plan__media">
+        <Image
+          src={maker}
+          alt="A maker laughing while holding up a bright pink and yellow crocheted blanket"
+          widths={[420, 700, 1000]}
+          sizes="(min-width: 950px) 45vw, 92vw"
+          loading="lazy"
+        />
+        <span class="plan__chipLight">
+          <Icon name="spark" />
+          {membership.overlay}
+        </span>
+        <span class="plan__chipDark">{membership.chip}</span>
+
+        <blockquote class="plan__quote">
+          <span class="plan__quoteDots" aria-hidden="true">
+            <i style="background:var(--mint)"></i>
+            <i style="background:var(--coral)"></i>
+            <i style="background:var(--peri)"></i>
+          </span>
+          <p>“{membership.quote}”</p>
+          <cite>{membership.quoteBy}</cite>
+        </blockquote>
+      </div>
+
+      <div class="plan__body">
+        <span class="plan__badge">{membership.badge}</span>
+
+        <h3 class="plan__name">{membership.name}</h3>
+
+        <p class="plan__price">
+          {price(membership.price)}<span> / month</span>
+        </p>
+        <p class="plan__sub">{membership.perSeat}</p>
+
+        <ul class="plan__list">
+          {
+            membership.benefits.map((benefit) => (
+              <li>
+                <span class="plan__icon" style={`background:${benefit.tone}`}>
+                  <Icon name={benefit.icon} />
+                </span>
+                {benefit.text}
+              </li>
+            ))
+          }
+        </ul>
+
+        <Button href={site.dm} external variant="solid" arrow>Join the wait list</Button>
+        <p class="fine plan__fine">{membership.social}</p>
+      </div>
+
+      <span class="plan__seal" aria-hidden="true" data-spin="1">
+        <Sticker
+          lines={["Made", "by these", "hands"]}
+          fill="var(--coral)"
+          ink="var(--coral-deep)"
+          outline
+          rotate={11}
+        />
+      </span>
+    </article>
+  </div>
+</section>
+
+<style>
+  .pass {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pass__ribbon {
+    position: absolute;
+    display: block;
+    top: 14%;
+    left: -46%;
+    width: clamp(520px, 58vw, 860px);
+    rotate: -8deg;
+    z-index: 0;
+  }
+
+  .pass__head {
+    position: relative;
+    z-index: 1;
+    gap: 1.15rem;
+    margin-bottom: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  /* --- plan card ---------------------------------------------------------- */
+
+  .plan {
+    position: relative;
+    display: grid;
+    overflow: hidden;
+    border: var(--edge);
+    border-radius: var(--r-xl);
+    background: linear-gradient(150deg, #fff7ed 0%, var(--burgundy-tint) 100%);
+    box-shadow: var(--float);
+  }
+
+  .plan__media {
+    position: relative;
+    min-height: 320px;
+    background: var(--blush);
+  }
+
+  .plan__media :global(img) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .plan__chipLight,
+  .plan__chipDark {
+    position: absolute;
+    top: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.45rem 0.85rem;
+    border-radius: var(--r-sm);
+    font-size: 0.78rem;
+  }
+
+  .plan__chipLight {
+    left: 1rem;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
+  }
+
+  .plan__chipDark {
+    right: 1rem;
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .plan__quote {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    border: var(--edge);
+    border-radius: var(--r-md);
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  .plan__quoteDots {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .plan__quoteDots i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .plan__quote p {
+    font-size: var(--step-1);
+    font-style: italic;
+    line-height: 1.35;
+  }
+
+  .plan__quote cite {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.74rem;
+    font-style: normal;
+    color: var(--ink-40);
+  }
+
+  /* --- right column ------------------------------------------------------- */
+
+  .plan__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .plan__badge {
+    align-self: flex-start;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--r-sm);
+    background: linear-gradient(90deg, #fdc700, #ffb900);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .plan__name {
+    font-family: var(--font-body);
+    font-size: var(--step-3);
+    font-weight: 500;
+    text-transform: none;
+    line-height: 1.1;
+  }
+
+  .plan__price {
+    font-size: clamp(2.75rem, 7vw, 4.25rem);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .plan__price span {
+    font-size: 0.28em;
+    font-weight: 400;
+    color: var(--ink-40);
+  }
+
+  .plan__sub {
+    margin-top: -0.35rem;
+    font-size: var(--step--1);
+    color: var(--ink-60);
+  }
+
+  .plan__list {
+    display: grid;
+    gap: 0.85rem;
+    margin: 0.75rem 0;
+  }
+
+  .plan__list li {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: var(--step-0);
+  }
+
+  .plan__icon {
+    display: grid;
+    place-items: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    flex: none;
+    border-radius: var(--r-sm);
+    font-size: 1.05rem;
+  }
+
+  .plan__body :global(.btn) {
+    width: 100%;
+  }
+
+  .plan__fine {
+    text-align: center;
+  }
+
+  .plan__seal {
+    display: none;
+  }
+
+  @media (min-width: 950px) {
+    .plan {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .plan__seal {
+      display: block;
+      position: absolute;
+      right: 1.75rem;
+      top: 24%;
+      width: 118px;
+      z-index: 3;
+    }
+  }
+</style>

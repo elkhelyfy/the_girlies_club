@@ -1,0 +1,42 @@
+---
+interface Props {
+  icon?: string;
+  tone?: "heat" | "night";
+  class?: string;
+}
+
+const { icon, tone = "heat", class: className = "" } = Astro.props;
+---
+
+<span class={`eyebrow eyebrow--${tone} ${className}`}>
+  {icon && <span class="eyebrow__icon" aria-hidden="true">{icon}</span>}
+  <slot />
+</span>
+
+<style>
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    padding: 0.42em 0.95em;
+    border-radius: var(--r-sm);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--paper);
+  }
+
+  .eyebrow--heat {
+    background: var(--heat);
+  }
+
+  .eyebrow--night {
+    background: var(--heat);
+  }
+
+  .eyebrow__icon {
+    font-size: 0.85em;
+    line-height: 1;
+  }
+</style>

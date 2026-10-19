@@ -1,0 +1,98 @@
+---
+/**
+ * Wavy-edged sticker badge — the "yarn over drama" seals scattered through
+ * the Figma comp. The blob outline is generated so any size reads evenly.
+ */
+interface Props {
+  /** One short word per line. */
+  lines: string[];
+  fill?: string;
+  ink?: string;
+  outline?: boolean;
+  rotate?: number;
+  class?: string;
+}
+
+const {
+  lines,
+  fill = "var(--blush)",
+  ink = "var(--burgundy-dark)",
+  outline = false,
+  rotate = -8,
+  class: className = "",
+} = Astro.props;
+
+// Petal-edged circle: alternate between two radii around 24 sample points.
+const POINTS = 24;
+const [rOuter, rInner] = [50, 43];
+const blob = Array.from({ length: POINTS }, (_, i) => {
+  const angle = (i / POINTS) * Math.PI * 2;
+  const r = i % 2 === 0 ? rOuter : rInner;
+  return [50 + Math.cos(angle) * r, 50 + Math.sin(angle) * r];
+});
+
+const path =
+  blob
+    .map(([x, y], i) => {
+      const [px, py] = blob[(i - 1 + POINTS) % POINTS];
+      const cmd = i === 0 ? "M" : "Q";
+      if (i === 0) return `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+      // Control point pushed outward from the midpoint for a scalloped edge.
+      const mx = (px + x) / 2;
+      const my = (py + y) / 2;
+      const k = 1.14;
+      return `${cmd} ${(50 + (mx - 50) * k).toFixed(2)} ${(50 + (my - 50) * k).toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ") + " Z";
+
+const lineHeight = 13;
+const startY = 50 - ((lines.length - 1) * lineHeight) / 2;
+---
+
+<div class={`sticker ${className}`} style={`--rot:${rotate}deg`} aria-hidden="true">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d={path}
+      fill={outline ? "none" : fill}
+      stroke={outline ? fill : "none"}
+      stroke-width={outline ? 1.6 : 0}
+    />
+    {
+      lines.map((line, i) => (
+        <text
+          x="50"
+          y={startY + i * lineHeight}
+          text-anchor="middle"
+          dominant-baseline="middle"
+          fill={ink}
+          class="sticker__text"
+        >
+          {line}
+        </text>
+      ))
+    }
+  </svg>
+</div>
+
+<style>
+  .sticker {
+    display: grid;
+    place-items: center;
+    rotate: var(--rot);
+    pointer-events: none;
+  }
+
+  .sticker svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .sticker__text {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+</style>
