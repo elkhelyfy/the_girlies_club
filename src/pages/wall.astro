@@ -1,0 +1,107 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import WallTile from "../components/WallTile.astro";
+import Sticker from "../components/ui/Sticker.astro";
+import { wallPosts } from "../lib/content";
+
+const posts = wallPosts();
+---
+
+<Base
+  title="The Wall — made at The Girlies Club"
+  description="Everything on this wall was made at a Girlies Club workshop in Casablanca — crochet, peinture and broderie by the girlies themselves."
+>
+  <Header />
+
+  <main id="main" class="wallpage">
+    <header class="shell head">
+      <h1 class="display display--lg">
+        The <span class="tint-heat">wall</span>
+      </h1>
+      <span class="head__sticker" aria-hidden="true">
+        <Sticker lines={["Made", "it!"]} fill="var(--lime)" ink="var(--ink)" rotate={9} />
+      </span>
+    </header>
+
+    <section class="shell board" aria-label="Pieces on the wall">
+      {
+        posts.length ? (
+          <ul class="grid">
+            {posts.map((post, i) => (
+              <WallTile post={post} index={i} />
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">The wall is waiting for its first piece.</p>
+        )
+      }
+    </section>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .wallpage {
+    /* flow-root stops the last section's margin escaping as a cream gap. */
+    display: flow-root;
+    background: var(--night);
+    color: var(--parchment);
+  }
+
+  .head {
+    position: relative;
+    padding-block: clamp(2.5rem, 6vw, 4rem) clamp(1.5rem, 3vw, 2.25rem);
+    text-align: center;
+  }
+
+  .head__sticker {
+    position: absolute;
+    top: 50%;
+    right: var(--gutter);
+    width: clamp(70px, 8vw, 104px);
+    translate: 0 -40%;
+  }
+
+  @media (max-width: 560px) {
+    .head__sticker {
+      display: none;
+    }
+  }
+
+  .board {
+    padding-bottom: clamp(3rem, 6vw, 5rem);
+  }
+
+  /* An even grid of squares; "tall" pieces take two rows, and `dense`
+     backfills the gaps they leave so the wall stays solid. */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 1fr;
+    grid-auto-flow: dense;
+    gap: 0.9rem;
+  }
+
+  @media (min-width: 640px) {
+    .grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .empty {
+    padding: 3rem 1rem;
+    border: 1.5px dashed var(--parchment-line);
+    border-radius: var(--r-xl);
+    text-align: center;
+    color: var(--parchment-70);
+  }
+</style>

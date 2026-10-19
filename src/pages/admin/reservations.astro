@@ -1,0 +1,109 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import ReservationCard from "../../components/admin/ReservationCard.astro";
+import {
+  RESERVATION_STATUS,
+  RESERVATION_STATUS_KEYS,
+  adminEvents,
+  getEvent,
+  listReservations,
+  reservationCounts,
+  type EventRow,
+  type ReservationStatus,
+} from "../../lib/bookings";
+import { handleReservationAction, safeBack, withFlash } from "../../lib/adminActions";
+
+const PAGE = "/admin/reservations";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const flash = handleReservationAction(form) ?? { error: "Unknown action." };
+  return Astro.redirect(withFlash(safeBack(form, PAGE), flash));
+}
+
+const params = Astro.url.searchParams;
+const whenParam = params.get("when");
+const when = whenParam === "past" || whenParam === "all" ? whenParam : "upcoming";
+const q = (params.get("q") ?? "").slice(0, 80);
+const counts = reservationCounts(when);
+const statusParam = params.get("status");
+// Open on new requests when there are some — that's the to-do list.
+const status: ReservationStatus | "all" =
+  statusParam === "all" || RESERVATION_STATUS_KEYS.includes(statusParam as ReservationStatus)
+    ? (statusParam as ReservationStatus | "all")
+    : counts.pending > 0 && !q
+      ? "pending"
+      : "all";
+
+const list = listReservations({ status, when, q });
+const events = new Map<number, EventRow | undefined>();
+const eventFor = (id: number) => {
+  if (!events.has(id)) events.set(id, getEvent(id));
+  return events.get(id)!;
+};
+const moveTargets = adminEvents("upcoming").map((e) => ({ id: e.id, name: e.name, date: e.date }));
+
+const link = (patch: Record<string, string>) => {
+  const next = new URLSearchParams({ status, when, ...(q ? { q } : {}), ...patch });
+  if (next.get("q") === "") next.delete("q");
+  return `${PAGE}?${next}`;
+};
+const back = `${PAGE}?${new URLSearchParams({ status, when, ...(q ? { q } : {}) })}`;
+---
+
+<AdminLayout title="Reservations" intro="Every booking in one place. New requests come first — confirm them, then message the guest on WhatsApp.">
+  <form class="search" method="get" role="search">
+    <input type="hidden" name="when" value={when} />
+    <input type="hidden" name="status" value="all" />
+    <label class="sr-only" for="q">Search</label>
+    <input id="q" name="q" type="search" value={q} placeholder="Search a name, phone, @instagram, code or event…" />
+    <button class="abtn">Search</button>
+    {q && <a class="abtn abtn--ghost" href={link({ q: "" })}>Clear</a>}
+  </form>
+
+  <nav class="tabs" aria-label="When">
+    {
+      (["upcoming", "past", "all"] as const).map((w) => (
+        <a href={link({ when: w })} aria-current={w === when ? "page" : undefined}>
+          {w === "upcoming" ? "Upcoming events" : w === "past" ? "Past events" : "Everything"}
+        </a>
+      ))
+    }
+  </nav>
+
+  <nav class="tabs" aria-label="Status">
+    <a href={link({ status: "all" })} aria-current={status === "all" ? "page" : undefined}>All <span>{counts.all}</span></a>
+    {
+      RESERVATION_STATUS_KEYS.map((k) => (
+        <a href={link({ status: k })} aria-current={status === k ? "page" : undefined}>
+          {RESERVATION_STATUS[k].label} <span>{counts[k]}</span>
+        </a>
+      ))
+    }
+  </nav>
+
+  {
+    list.length ? (
+      <ul class="list">
+        {list.map((r) => (
+          <ReservationCard r={r} event={eventFor(r.event_id)} back={back} showEvent moveTargets={moveTargets} />
+        ))}
+      </ul>
+    ) : (
+      <p class="empty">
+        {q
+          ? `Nothing matches “${q}”.`
+          : status === "pending"
+            ? "No new requests — you're all caught up 🌸"
+            : "No reservations here yet."}
+      </p>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .list {
+    display: grid;
+    gap: 0.6rem;
+  }
+</style>

@@ -1,0 +1,51 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import Button from "../components/ui/Button.astro";
+import Sticker from "../components/ui/Sticker.astro";
+
+Astro.response.status = 404;
+---
+
+<Base title="Page not found — The Girlies Club" description="This page dropped a stitch.">
+  <Header />
+  <main id="main" class="lost">
+    <div class="shell center-col lost__inner">
+      <span class="lost__sticker" aria-hidden="true">
+        <Sticker lines={["Oops", "a", "loop"]} fill="var(--blush)" ink="var(--burgundy-dark)" rotate={-10} />
+      </span>
+      <h1 class="display display--xl">
+        Dropped a<br /><span class="tint-heat">stitch</span>
+      </h1>
+      <p class="lede">This page doesn't exist — or that session has moved. Let's get you back to the table.</p>
+      <div class="lost__actions">
+        <Button href="/calendar" variant="solid" arrow>See the calendar</Button>
+        <Button href="/" variant="outline">Home</Button>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .lost {
+    padding-block: clamp(4rem, 12vw, 8rem);
+    background: var(--page-wash);
+  }
+
+  .lost__inner {
+    gap: 1.25rem;
+  }
+
+  .lost__sticker {
+    width: 110px;
+  }
+
+  .lost__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+</style>

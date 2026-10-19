@@ -1,0 +1,93 @@
+---
+import { library } from "../../lib/assets";
+import Pic from "../ui/Pic.astro";
+
+interface Props {
+  name: string;
+  label: string;
+  current: string | null | undefined;
+  /** Only offer avatars / only offer photos from the bundled library. */
+  filter?: "avatars" | "photos";
+  allowClear?: boolean;
+}
+
+const { name, label, current, filter = "photos", allowClear = true } = Astro.props;
+
+const options = Object.entries(library).filter(([, item]) =>
+  filter === "avatars" ? item.label.startsWith("Avatar") : !item.label.startsWith("Avatar"),
+);
+---
+
+<fieldset class="imgfield">
+  <legend>{label}</legend>
+
+  <div class="imgfield__row">
+    <div class="imgfield__preview">
+      {current ? <Pic src={current} alt="" widths={[160, 320]} sizes="120px" /> : <span>No photo</span>}
+    </div>
+
+    <div class="imgfield__inputs">
+      <label>
+        Upload a photo <small>JPEG, PNG or WebP · up to 6 MB</small>
+        <input type="file" name={`${name}_file`} accept="image/jpeg,image/png,image/webp" />
+      </label>
+
+      <label>
+        …or pick from the library
+        <select name={`${name}_library`}>
+          <option value="keep">{current ? "Keep current photo" : "— none —"}</option>
+          {options.map(([key, item]) => <option value={key}>{item.label}</option>)}
+        </select>
+      </label>
+
+      {
+        allowClear && current && (
+          <label class="check">
+            <input type="checkbox" name={`${name}_clear`} /> Remove the photo
+          </label>
+        )
+      }
+    </div>
+  </div>
+</fieldset>
+
+<style>
+  .imgfield__row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .imgfield__preview {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 120px;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 1.5px dashed rgba(177, 2, 61, 0.35);
+    border-radius: 14px;
+    background: var(--rose-mist);
+    font-size: 0.75rem;
+    color: var(--ink-40);
+  }
+
+  .imgfield__preview :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .imgfield__inputs {
+    display: grid;
+    flex: 1;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  @media (max-width: 560px) {
+    .imgfield__row {
+      flex-direction: column;
+    }
+  }
+</style>

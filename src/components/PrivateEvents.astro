@@ -1,6 +1,8 @@
 ---
 import { Image } from "astro:assets";
 import { privateEvents, site } from "../data/site";
+
+const { dmUrl, private_note } = Astro.locals.settings;
 import Button from "./ui/Button.astro";
 import Eyebrow from "./ui/Eyebrow.astro";
 import Icon from "./ui/Icon.astro";
@@ -58,8 +60,8 @@ import Sticker from "./ui/Sticker.astro";
       </ol>
 
       <div class="private__cta" data-reveal>
-        <Button href={site.dm} external variant="solid" arrow>Plan it with us on Instagram</Button>
-        <p class="fine">Send the date, the headcount and the craft — we reply with a quote.</p>
+        <Button href={dmUrl} external variant="solid" arrow>Plan it with us on Instagram</Button>
+        <p class="fine">{private_note}</p>
       </div>
     </div>
   </div>

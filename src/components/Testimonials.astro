@@ -1,8 +1,15 @@
 ---
-import { Image } from "astro:assets";
-import { testimonials } from "../data/site";
+import type { Testimonial } from "../lib/content";
+import { tone } from "../lib/content";
 import Eyebrow from "./ui/Eyebrow.astro";
 import Icon from "./ui/Icon.astro";
+import Pic from "./ui/Pic.astro";
+
+interface Props {
+  items: Testimonial[];
+}
+
+const { items } = Astro.props;
 ---
 
 <section class="section words">
@@ -12,13 +19,14 @@ import Icon from "./ui/Icon.astro";
       <h2 class="display display--lg">The energy speaks<br />for itself</h2>
     </header>
 
+    {!items.length && <p class="words__empty">First reviews coming soon.</p>}
     <ul class="words__grid">
       {
-        testimonials.map((t, i) => (
+        items.map((t, i) => (
           <li
             class="quote"
             data-reveal
-            style={`--surface:${t.surface}; --reveal-delay:${(i % 3) * 100}ms`}
+            style={`--surface:${tone(t.tone).surface}; --reveal-delay:${(i % 3) * 100}ms`}
           >
             <span class="quote__mark" aria-hidden="true">
               <Icon name="quote" />
@@ -27,14 +35,15 @@ import Icon from "./ui/Icon.astro";
             <blockquote class="quote__text">{t.quote}</blockquote>
 
             <figcaption class="quote__by">
-              <Image
-                src={t.avatar}
-                alt=""
-                width={44}
-                height={44}
-                loading="lazy"
-                aria-hidden="true"
-              />
+              {t.avatar ? (
+                <span class="quote__avatar" aria-hidden="true">
+                  <Pic src={t.avatar} alt="" widths={[88]} sizes="44px" />
+                </span>
+              ) : (
+                <span class="quote__avatar quote__avatar--initial" aria-hidden="true">
+                  {t.name.charAt(0)}
+                </span>
+              )}
               <span>
                 <b>{t.name}</b>
                 <em>{t.role}</em>
@@ -55,6 +64,11 @@ import Icon from "./ui/Icon.astro";
   .words__head {
     gap: 1.15rem;
     margin-bottom: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .words__empty {
+    text-align: center;
+    color: var(--ink-60);
   }
 
   .words__grid {
@@ -91,13 +105,29 @@ import Icon from "./ui/Icon.astro";
     padding-top: 0.5rem;
   }
 
-  .quote__by :global(img) {
+  .quote__avatar {
+    display: grid;
+    place-items: center;
     width: 44px;
     height: 44px;
     flex: none;
+    overflow: hidden;
     border-radius: 50%;
-    object-fit: cover;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+  }
+
+  .quote__avatar :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .quote__avatar--initial {
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--burgundy);
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 600;
   }
 
   .quote__by span {

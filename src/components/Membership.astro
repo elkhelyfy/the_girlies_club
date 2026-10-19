@@ -1,12 +1,15 @@
 ---
 import { Image } from "astro:assets";
 import maker from "../assets/story/maker.png";
-import { membership, price, site } from "../data/site";
+import { membership, price } from "../data/site";
 import Button from "./ui/Button.astro";
 import Eyebrow from "./ui/Eyebrow.astro";
 import Icon from "./ui/Icon.astro";
 import Ribbon from "./ui/Ribbon.astro";
 import Sticker from "./ui/Sticker.astro";
+
+const s = Astro.locals.settings;
+const monthly = Number.parseInt(s.membership_price, 10) || 0;
 ---
 
 <section class="section section--wash pass" id="membership">
@@ -61,9 +64,9 @@ import Sticker from "./ui/Sticker.astro";
         <h3 class="plan__name">{membership.name}</h3>
 
         <p class="plan__price">
-          {price(membership.price)}<span> / month</span>
+          {price(monthly)}<span> / month</span>
         </p>
-        <p class="plan__sub">{membership.perSeat}</p>
+        <p class="plan__sub">Works out at {price(Math.round(monthly / 2))} a session. Cancel any month.</p>
 
         <ul class="plan__list">
           {
@@ -78,8 +81,8 @@ import Sticker from "./ui/Sticker.astro";
           }
         </ul>
 
-        <Button href={site.dm} external variant="solid" arrow>Join the wait list</Button>
-        <p class="fine plan__fine">{membership.social}</p>
+        <Button href={s.dmUrl} external variant="solid" arrow>Join the wait list</Button>
+        <p class="fine plan__fine">{s.membership_note}</p>
       </div>
 
       <span class="plan__seal" aria-hidden="true" data-spin="1">

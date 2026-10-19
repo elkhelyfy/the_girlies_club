@@ -4,25 +4,30 @@ import logo from "../assets/logo-wordmark.png";
 import { nav, site } from "../data/site";
 import Button from "./ui/Button.astro";
 import Icon from "./ui/Icon.astro";
+
+const s = Astro.locals.settings;
+const path = Astro.url.pathname;
+// Page links are "current" on their own page; in-page anchors never are.
+const isCurrent = (href: string) => !href.includes("#") && path.startsWith(href);
 ---
 
 <div class="ticker">
   <Icon name="spark" />
-  <span>New: <span lang="fr">broderie</span> joins the table</span>
+  <span>{s.ticker_text}</span>
   <span class="ticker__sep" aria-hidden="true">—</span>
-  <a href="#sessions">Save a seat</a>
+  <a href="/calendar">{s.ticker_cta}</a>
 </div>
 
 <header class="header" data-header>
   <div class="shell header__inner">
-    <a class="wordmark" href="#top" aria-label={`${site.name} — home`}>
+    <a class="wordmark" href="/" aria-label={`${site.name} — home`}>
       <Image class="wordmark__mark" src={logo} alt={site.name} densities={[1, 2]} width={124} loading="eager" />
     </a>
 
     <nav class="nav" aria-label="Primary">
       {
         nav.map((item) => (
-          <a class="nav__link" href={item.href}>
+          <a class="nav__link" href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>
             {item.label}
             {item.dot && <i class="nav__dot" aria-hidden="true" />}
           </a>
@@ -31,7 +36,7 @@ import Icon from "./ui/Icon.astro";
     </nav>
 
     <div class="header__cta">
-      <Button href="#sessions" variant="cream" size="sm">Book a seat</Button>
+      <Button href="/calendar" variant="cream" size="sm">Book a seat</Button>
     </div>
 
     <button
@@ -48,8 +53,8 @@ import Icon from "./ui/Icon.astro";
 
   <div class="drawer" id="mobile-nav" data-drawer hidden>
     <nav aria-label="Mobile">
-      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
-      <a class="drawer__cta" href="#sessions">Book a seat</a>
+      {nav.map((item) => <a href={item.href} aria-current={isCurrent(item.href) ? "page" : undefined}>{item.label}</a>)}
+      <a class="drawer__cta" href="/calendar">Book a seat</a>
     </nav>
   </div>
 </header>
@@ -178,8 +183,13 @@ import Icon from "./ui/Icon.astro";
   }
 
   .nav__link:hover,
-  .nav__link:focus-visible {
+  .nav__link:focus-visible,
+  .nav__link[aria-current="page"] {
     color: var(--parchment);
+  }
+
+  .nav__link[aria-current="page"]::after {
+    transform: scaleX(1);
   }
 
   .nav__link:focus-visible::after {

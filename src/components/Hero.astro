@@ -1,9 +1,10 @@
 ---
-import { crafts, site } from "../data/site";
+import { crafts } from "../data/site";
 import Button from "./ui/Button.astro";
 import Icon from "./ui/Icon.astro";
 import Ribbon from "./ui/Ribbon.astro";
 import Sticker from "./ui/Sticker.astro";
+const s = Astro.locals.settings;
 ---
 
 <section class="hero" id="top">
@@ -35,9 +36,9 @@ import Sticker from "./ui/Sticker.astro";
   </div>
 
   <div class="shell hero__inner">
-    <a class="hero__proof" href={site.instagram} target="_blank" rel="noopener" data-hero>
+    <a class="hero__proof" href={s.instagramUrl} target="_blank" rel="noopener" data-hero>
       <Icon name="instagram" />
-      <span><b>{site.followers}</b> girlies follow the club on Instagram</span>
+      <span><b>{s.followers}</b> girlies follow the club on Instagram</span>
       <Icon name="arrow" class="hero__proofArrow" />
     </a>
 
@@ -60,16 +61,15 @@ import Sticker from "./ui/Sticker.astro";
     </ul>
 
     <p class="lede hero__lede" data-hero>
-      Weekend workshops for women in {site.city}. Every material on the table, a
-      pause café halfway through, zero experience needed.
+      {s.hero_lede}
     </p>
 
     <div class="hero__actions" data-hero>
-      <Button href="#sessions" variant="solid" arrow>Book a workshop</Button>
+      <Button href="/calendar" variant="solid" arrow>See the calendar</Button>
       <Button href="#private" variant="outline">Bring it to your event</Button>
     </div>
 
-    <p class="fine hero__fine" lang="fr" data-hero>{site.motto} · 100% femmes</p>
+    <p class="fine hero__fine" lang="fr" data-hero>{s.motto} · 100% femmes</p>
   </div>
 
   <span class="hero__sticker" aria-hidden="true" data-hero-sticker data-spin="-1">

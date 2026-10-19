@@ -1,5 +1,12 @@
 ---
-import { stats } from "../data/site";
+const { followers } = Astro.locals.settings;
+
+const stats = [
+  { value: followers, label: "Girlies following on Instagram" },
+  { value: "100%", label: "Women only, every session" },
+  { value: "2h", label: "Per workshop, pause café included" },
+  { value: "Zero", label: "Experience needed" },
+];
 ---
 
 <section class="stats">

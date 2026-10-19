@@ -1,0 +1,265 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import ImageField from "../../components/admin/ImageField.astro";
+import Pic from "../../components/ui/Pic.astro";
+import {
+  CRAFTS,
+  cleanHandle,
+  deleteWallPost,
+  getWallPost,
+  instagramUrl,
+  saveWallPost,
+  wallPosts,
+  type WallPost,
+} from "../../lib/content";
+import { FormError, back, flag, int, oneOf, text } from "../../lib/forms";
+import { UploadError, imageFromForm } from "../../lib/images";
+
+const PAGE = "/admin/wall";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const id = int(form, "id") || null;
+  const intent = form.get("intent");
+
+  if (intent === "delete" && id) {
+    deleteWallPost(id);
+    return Astro.redirect(back(PAGE, { saved: "Removed from the wall." }));
+  }
+
+  if (intent === "toggle" && id) {
+    const post = getWallPost(id);
+    if (post) saveWallPost(id, { ...post, published: post.published ? 0 : 1 });
+    return Astro.redirect(back(PAGE, { saved: post?.published ? "Hidden from the wall." : "Back on the wall." }));
+  }
+
+  try {
+    const existing = id ? getWallPost(id) : undefined;
+    const instagram = cleanHandle(text(form, "instagram", { required: "Add the maker's Instagram username." }));
+    if (!instagram) throw new FormError("That doesn't look like an Instagram username.");
+    const image = await imageFromForm(form, "image", existing?.image ?? null);
+    if (!image) throw new FormError("Every piece on the wall needs a photo.");
+
+    saveWallPost(id, {
+      image,
+      instagram,
+      alt: text(form, "alt", { max: 200 }),
+      title: text(form, "title", { max: 80 }),
+      craft: oneOf(form, "craft", CRAFTS, "Crochet"),
+      featured: flag(form, "featured"),
+      tall: flag(form, "tall"),
+      published: flag(form, "published"),
+    });
+    return Astro.redirect(back(PAGE, { saved: id ? "Updated." : `@${instagram}'s piece is on the wall.` }));
+  } catch (error) {
+    if (error instanceof FormError || error instanceof UploadError) {
+      return Astro.redirect(back(`${PAGE}?edit=${id ?? "new"}`, { error: error.message }));
+    }
+    throw error;
+  }
+}
+
+const posts = wallPosts({ includeHidden: true });
+const editParam = Astro.url.searchParams.get("edit");
+const editing: Partial<WallPost> | null =
+  editParam === "new"
+    ? { published: 1, craft: "Crochet" }
+    : editParam
+      ? (getWallPost(Number(editParam)) ?? null)
+      : null;
+---
+
+<AdminLayout
+  title="The Wall"
+  intro="Pieces girlies made in the room. Each one is tagged with the maker's Instagram so visitors can find them."
+>
+  {
+    editing && (
+      <section class="panel" id="form">
+        <h2>{editing.id ? `Edit @${editing.instagram}'s piece` : "Add a piece to the wall"}</h2>
+        <form class="form" method="post" enctype="multipart/form-data">
+          {editing.id && <input type="hidden" name="id" value={editing.id} />}
+
+          <ImageField name="image" label="Photo of the piece" current={editing.image} allowClear={false} />
+
+          <div class="form__grid">
+            <label>
+              Maker's Instagram <small>With or without the @</small>
+              <span class="ig">
+                <span aria-hidden="true">@</span>
+                <input name="instagram" required maxlength="60" value={editing.instagram ?? ""} placeholder="sarah.k" />
+              </span>
+            </label>
+            <label>
+              Session <small>Optional, e.g. “Beanie Night, Dec”</small>
+              <input name="title" maxlength="80" value={editing.title ?? ""} />
+            </label>
+            <label>
+              Craft
+              <select name="craft">
+                {CRAFTS.map((c) => (
+                  <option selected={editing.craft === c}>{c}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Photo description <small>For screen readers — e.g. “Pink and cream star blanket seen from above”</small>
+            <input name="alt" maxlength="200" value={editing.alt ?? ""} />
+          </label>
+
+          <div class="actions">
+            <label class="check">
+              <input type="checkbox" name="published" checked={editing.published === 1} /> On the wall
+            </label>
+            <label class="check">
+              <input type="checkbox" name="featured" checked={editing.featured === 1} /> Featured (pinned first)
+            </label>
+            <label class="check">
+              <input type="checkbox" name="tall" checked={editing.tall === 1} /> Tall tile
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="abtn" type="submit">{editing.id ? "Save changes" : "Add to the wall"}</button>
+            <a class="abtn abtn--ghost" href={PAGE}>Cancel</a>
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  <section class="panel">
+    <div class="panel__head">
+      <h2>{posts.length} pieces</h2>
+      <a class="abtn abtn--sm" href={`${PAGE}?edit=new#form`}>+ Add a piece</a>
+    </div>
+
+    {
+      posts.length ? (
+        <ul class="grid">
+          {posts.map((p) => (
+            <li class:list={["item", { "is-hidden": !p.published }]}>
+              <div class="item__img">
+                <Pic src={p.image} alt={p.alt} widths={[240, 400]} sizes="200px" />
+                {p.featured === 1 && <span class="pill item__flag">Featured</span>}
+                {!p.published && <span class="pill pill--muted item__flag">Hidden</span>}
+              </div>
+              <div class="item__body">
+                <a href={instagramUrl(p.instagram)} target="_blank" rel="noopener">
+                  @{p.instagram}
+                </a>
+                <small>{[p.craft, p.title].filter(Boolean).join(" · ")}</small>
+              </div>
+              <div class="row-actions">
+                <a class="abtn abtn--ghost abtn--sm" href={`${PAGE}?edit=${p.id}#form`}>Edit</a>
+                <form method="post">
+                  <input type="hidden" name="id" value={p.id} />
+                  <button class="abtn abtn--ghost abtn--sm" name="intent" value="toggle">
+                    {p.published ? "Hide" : "Show"}
+                  </button>
+                </form>
+                <form method="post" data-confirm={`Remove @${p.instagram}'s piece from the wall?`}>
+                  <input type="hidden" name="id" value={p.id} />
+                  <button class="abtn abtn--danger abtn--sm" name="intent" value="delete" data-hold title="Press and hold to delete">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">The wall is empty. Add the first piece!</p>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<style>
+  .ig {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid rgba(10, 10, 10, 0.18);
+    border-radius: var(--r-sm);
+    background: #fff;
+  }
+
+  .ig > span {
+    padding-left: 0.8rem;
+    color: var(--burgundy);
+    font-weight: 600;
+  }
+
+  .ig :global(input) {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding-left: 0.25rem !important;
+  }
+
+  .ig:focus-within {
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.15);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 1rem;
+  }
+
+  .item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.6rem;
+    border: 1px solid rgba(10, 10, 10, 0.1);
+    border-radius: var(--r-md);
+    background: var(--paper);
+  }
+
+  .item.is-hidden {
+    opacity: 0.6;
+  }
+
+  .item__img {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #f7efe9;
+  }
+
+  .item__img :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .item__flag {
+    position: absolute;
+    top: 0.4rem;
+    left: 0.4rem;
+  }
+
+  .item__body {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .item__body a {
+    color: var(--burgundy);
+    font-weight: 600;
+  }
+
+  .item__body small {
+    color: var(--ink-60);
+  }
+
+  .item .row-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    margin-top: auto;
+  }
+</style>

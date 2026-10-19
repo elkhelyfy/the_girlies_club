@@ -1,0 +1,109 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { instagramUrl } from "../../lib/content";
+import { people, whatsappLink } from "../../lib/bookings";
+import { formatDay } from "../../lib/dates";
+
+const q = (Astro.url.searchParams.get("q") ?? "").slice(0, 80);
+const list = people(q);
+const regulars = list.filter((p) => p.attended >= 2).length;
+---
+
+<AdminLayout
+  title="Girlies"
+  intro="Everyone who has booked, grouped by phone, Instagram or email — so you can spot the regulars."
+>
+  <form class="search" method="get" role="search">
+    <label class="sr-only" for="q">Search</label>
+    <input id="q" name="q" type="search" value={q} placeholder="Search a name, phone, @instagram or email…" />
+    <button class="abtn">Search</button>
+    {q && <a class="abtn abtn--ghost" href="/admin/people">Clear</a>}
+  </form>
+
+  <p class="muted summary">
+    {list.length} {list.length === 1 ? "girlie" : "girlies"}{!q && regulars > 0 && ` · ${regulars} came twice or more 💕`}
+  </p>
+
+  {
+    list.length ? (
+      <section class="panel">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Bookings</th>
+                <th>Came</th>
+                <th>Last event</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((p) => {
+                const wa = p.phone ? whatsappLink(p.phone) : null;
+                const search = p.phone || p.instagram || p.email || p.name;
+                return (
+                  <tr>
+                    <td>
+                      <b>{p.name}</b>
+                      {p.attended >= 2 && <span class="pill">Regular</span>}
+                      {p.upcoming > 0 && <span class="pill pill--muted">{p.upcoming} coming up</span>}
+                    </td>
+                    <td class="contact">
+                      {wa && (
+                        <a href={wa} target="_blank" rel="noopener">
+                          {p.phone}
+                        </a>
+                      )}
+                      {p.instagram && (
+                        <a href={instagramUrl(p.instagram)} target="_blank" rel="noopener">
+                          @{p.instagram}
+                        </a>
+                      )}
+                      {p.email && <a href={`mailto:${p.email}`}>{p.email}</a>}
+                    </td>
+                    <td>{p.bookings}</td>
+                    <td>
+                      {p.attended}
+                      {p.noShows > 0 && <small class="muted"> · {p.noShows} no-show</small>}
+                    </td>
+                    <td>{p.lastEvent ? `${p.lastEvent.name}, ${formatDay(p.lastEvent.date)}` : "—"}</td>
+                    <td>
+                      <a class="abtn abtn--ghost abtn--sm" href={`/admin/reservations?${new URLSearchParams({ q: search, when: "all", status: "all" })}`}>
+                        Bookings
+                      </a>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ) : (
+      <p class="empty">{q ? `Nobody matches “${q}”.` : "No bookings yet — girlies show up here once they reserve."}</p>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .summary {
+    margin-bottom: 1rem;
+  }
+
+  .contact {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.85rem;
+  }
+
+  .contact a {
+    color: var(--burgundy);
+    overflow-wrap: anywhere;
+  }
+
+  td .pill {
+    margin-left: 0.4rem;
+  }
+</style>

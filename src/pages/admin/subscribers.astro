@@ -1,0 +1,59 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { deleteSubscriber, subscribers } from "../../lib/content";
+import { back, int } from "../../lib/forms";
+
+const PAGE = "/admin/subscribers";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const id = int(form, "id");
+  if (id) deleteSubscriber(id);
+  return Astro.redirect(back(PAGE, { saved: "Removed from the list." }));
+}
+
+const list = subscribers();
+const joined = (stamp: string) =>
+  new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${stamp}Z`));
+---
+
+<AdminLayout title="Mailing list" intro="Emails from “The list” sign-up in the footer.">
+  <section class="panel">
+    <div class="panel__head">
+      <h2>{list.length} {list.length === 1 ? "girlie" : "girlies"}</h2>
+      {list.length > 0 && <a class="abtn abtn--sm" href="/admin/subscribers.csv">Download CSV</a>}
+    </div>
+
+    {
+      list.length ? (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Joined</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((s) => (
+                <tr>
+                  <td>{s.email}</td>
+                  <td>{joined(s.created_at)}</td>
+                  <td>
+                    <form method="post" class="row-actions" data-confirm={`Remove ${s.email}?`}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <button class="abtn abtn--danger abtn--sm" data-hold title="Press and hold to remove">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p class="empty">No sign-ups yet. They'll appear here as people join from the footer.</p>
+      )
+    }
+  </section>
+</AdminLayout>

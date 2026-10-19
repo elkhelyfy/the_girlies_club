@@ -1,7 +1,16 @@
 ---
-import { closing } from "../data/site";
+import { closing, price } from "../data/site";
 import Button from "./ui/Button.astro";
 import Ribbon from "./ui/Ribbon.astro";
+
+interface Props {
+  /** Cheapest upcoming seat, if any are on the calendar. */
+  fromPrice: number | null;
+}
+
+const { fromPrice } = Astro.props;
+const { reschedule_policy } = Astro.locals.settings;
+const fine = [fromPrice !== null ? `Seats from ${price(fromPrice)}.` : "", reschedule_policy].filter(Boolean).join(" ");
 ---
 
 <section class="section section--night closing">
@@ -49,10 +58,10 @@ import Ribbon from "./ui/Ribbon.astro";
     </ul>
 
     <div data-reveal>
-      <Button href="#sessions" variant="cream" arrow>{closing.cta}</Button>
+      <Button href="/calendar" variant="cream" arrow>{closing.cta}</Button>
     </div>
 
-    <p class="closing__fine" data-reveal>{closing.fine}</p>
+    <p class="closing__fine" data-reveal>{fine}</p>
   </div>
 </section>
 

@@ -1,0 +1,129 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { deleteFaq, faqs, getFaq, saveFaq, type Faq } from "../../lib/content";
+import { FormError, back, int, text } from "../../lib/forms";
+
+const PAGE = "/admin/faq";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const id = int(form, "id") || null;
+
+  if (form.get("intent") === "delete" && id) {
+    deleteFaq(id);
+    return Astro.redirect(back(PAGE, { saved: "Question deleted." }));
+  }
+
+  try {
+    saveFaq(id, {
+      question: text(form, "question", { max: 200, required: "Write the question." }),
+      answer: text(form, "answer", { max: 1200, required: "Write the answer." }),
+      position: int(form, "position", { min: 0, max: 999 }),
+    });
+    return Astro.redirect(back(PAGE, { saved: id ? "Question updated." : "Question added." }));
+  } catch (error) {
+    if (error instanceof FormError) return Astro.redirect(back(`${PAGE}?edit=${id ?? "new"}`, { error: error.message }));
+    throw error;
+  }
+}
+
+const items = faqs();
+const editParam = Astro.url.searchParams.get("edit");
+const editing: Partial<Faq> | null =
+  editParam === "new" ? { position: items.length } : editParam ? (getFaq(Number(editParam)) ?? null) : null;
+---
+
+<AdminLayout title="FAQ" intro="The questions on the home page. The first one starts open; lowest order number comes first.">
+  {
+    editing && (
+      <section class="panel" id="form">
+        <h2>{editing.id ? "Edit question" : "New question"}</h2>
+        <form class="form" method="post">
+          {editing.id && <input type="hidden" name="id" value={editing.id} />}
+          <label>
+            Question
+            <input name="question" required maxlength="200" value={editing.question ?? ""} />
+          </label>
+          <label>
+            Answer
+            <textarea name="answer" required maxlength="1200">{editing.answer ?? ""}</textarea>
+          </label>
+          <label style="max-width: 10rem">
+            Order
+            <input type="number" name="position" min="0" value={editing.position ?? 0} />
+          </label>
+          <div class="actions">
+            <button class="abtn" type="submit">{editing.id ? "Save changes" : "Add question"}</button>
+            <a class="abtn abtn--ghost" href={PAGE}>Cancel</a>
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  <section class="panel">
+    <div class="panel__head">
+      <h2>{items.length} questions</h2>
+      <a class="abtn abtn--sm" href={`${PAGE}?edit=new#form`}>+ Add a question</a>
+    </div>
+
+    {
+      items.length ? (
+        <ol class="faqs">
+          {items.map((f) => (
+            <li>
+              <div>
+                <b>{f.question}</b>
+                <p>{f.answer}</p>
+              </div>
+              <div class="row-actions">
+                <span class="pill pill--muted">#{f.position}</span>
+                <a class="abtn abtn--ghost abtn--sm" href={`${PAGE}?edit=${f.id}#form`}>Edit</a>
+                <form method="post" data-confirm="Delete this question?">
+                  <input type="hidden" name="id" value={f.id} />
+                  <button class="abtn abtn--danger abtn--sm" name="intent" value="delete" data-hold title="Press and hold to delete">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p class="empty">No questions yet.</p>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<style>
+  .faqs {
+    display: grid;
+  }
+
+  .faqs li {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.9rem 0;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+  }
+
+  .faqs p {
+    margin-top: 0.25rem;
+    color: var(--ink-60);
+    font-size: 0.88rem;
+  }
+
+  .faqs .row-actions {
+    flex: none;
+    align-items: center;
+  }
+
+  @media (max-width: 640px) {
+    .faqs li {
+      flex-direction: column;
+    }
+  }
+</style>

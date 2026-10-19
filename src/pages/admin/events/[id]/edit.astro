@@ -1,0 +1,35 @@
+---
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import EventForm from "../../../../components/admin/EventForm.astro";
+import { getEvent, locations, saveEvent } from "../../../../lib/bookings";
+import { eventFromForm, withFlash } from "../../../../lib/adminActions";
+import { FormError } from "../../../../lib/forms";
+import { UploadError } from "../../../../lib/images";
+
+const id = Number(Astro.params.id);
+const event = getEvent(id);
+if (!event) return Astro.redirect(withFlash("/admin/events", { error: "That event doesn't exist." }));
+
+let error = "";
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  try {
+    saveEvent(id, await eventFromForm(form, event));
+    return Astro.redirect(withFlash(`/admin/events/${id}`, { saved: "Event updated." }));
+  } catch (e) {
+    if (!(e instanceof FormError || e instanceof UploadError)) throw e;
+    error = e.message;
+  }
+}
+
+// Archived locations still show if this event uses one.
+const options = locations({ includeInactive: true }).filter((l) => l.active || l.id === event.location_id);
+---
+
+<AdminLayout title={`Edit “${event.name}”`}>
+  <a class="back-link" href={`/admin/events/${id}`}>← Back to the event</a>
+  {error && <p class="flash flash--err" role="alert">{error}</p>}
+  <section class="panel">
+    <EventForm values={event} locations={options} submitLabel="Save changes" cancelHref={`/admin/events/${id}`} />
+  </section>
+</AdminLayout>

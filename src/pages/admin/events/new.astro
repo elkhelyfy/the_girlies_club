@@ -1,0 +1,47 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import EventForm from "../../../components/admin/EventForm.astro";
+import { todayISO } from "../../../lib/content";
+import { locations, saveEvent, type EventRow } from "../../../lib/bookings";
+import { eventFromForm, withFlash } from "../../../lib/adminActions";
+import { FormError } from "../../../lib/forms";
+import { UploadError } from "../../../lib/images";
+
+let error = "";
+let values: Partial<EventRow> = {
+  capacity: 12,
+  held_seats: 0,
+  price: 250,
+  tone: "blush",
+  status: "draft",
+  start_time: "14:00",
+  end_time: "16:00",
+  date: todayISO(),
+  craft: "Crochet",
+  level: "Beginner",
+};
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  try {
+    const input = await eventFromForm(form);
+    const id = saveEvent(null, input);
+    return Astro.redirect(withFlash(`/admin/events/${id}`, { saved: "Event created. Now it's ready for guests." }));
+  } catch (e) {
+    if (!(e instanceof FormError || e instanceof UploadError)) throw e;
+    error = e.message;
+    // Keep what she typed.
+    values = Object.fromEntries([...form.entries()].filter(([, v]) => typeof v === "string")) as Partial<EventRow>;
+    values.is_new = form.get("is_new") === "on" ? 1 : 0;
+    values.location_id = Number(form.get("location_id")) || null;
+  }
+}
+---
+
+<AdminLayout title="New event" intro="Start as a draft if you're still planning — switch it to Open when you're ready for reservations.">
+  <a class="back-link" href="/admin/events">← All events</a>
+  {error && <p class="flash flash--err" role="alert">{error}</p>}
+  <section class="panel">
+    <EventForm values={values} locations={locations({ includeInactive: false })} submitLabel="Create event" cancelHref="/admin/events" />
+  </section>
+</AdminLayout>

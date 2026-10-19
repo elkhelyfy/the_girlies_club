@@ -1,0 +1,195 @@
+---
+import { CRAFTS, LEVELS, TONES } from "../../lib/content";
+import { EVENT_STATUS, EVENT_STATUS_KEYS, type EventRow, type Location } from "../../lib/bookings";
+import ImageField from "./ImageField.astro";
+
+interface Props {
+  values: Partial<EventRow>;
+  locations: Location[];
+  submitLabel: string;
+  cancelHref: string;
+}
+
+const { values: v, locations, submitLabel, cancelHref } = Astro.props;
+const toneKeys = Object.keys(TONES) as (keyof typeof TONES)[];
+const booked = v.booked ?? 0;
+---
+
+<form class="form" method="post" enctype="multipart/form-data">
+  <fieldset>
+    <legend>The workshop</legend>
+    <div class="form__grid">
+      <label>
+        Name
+        <input name="name" required maxlength="120" value={v.name ?? ""} placeholder="Mirror Painting Date" />
+      </label>
+      <label>
+        Craft
+        <select name="craft">{CRAFTS.map((c) => <option selected={v.craft === c}>{c}</option>)}</select>
+      </label>
+      <label>
+        Level
+        <select name="level">{LEVELS.map((l) => <option selected={v.level === l}>{l}</option>)}</select>
+      </label>
+    </div>
+    <label>
+      Short description <small>One or two sentences for the card</small>
+      <textarea name="blurb" maxlength="400">{v.blurb ?? ""}</textarea>
+    </label>
+    <div class="form__grid">
+      <label>
+        Card colour
+        <select name="tone">
+          {toneKeys.map((k) => <option value={k} selected={v.tone === k}>{TONES[k].label}</option>)}
+        </select>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="is_new" checked={v.is_new === 1} /> Show a “New” badge
+      </label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>When &amp; where</legend>
+    <div class="form__grid">
+      <label>
+        Date
+        <input type="date" name="date" required value={v.date ?? ""} />
+      </label>
+      <label>
+        Starts
+        <input type="time" name="start_time" required value={v.start_time ?? ""} />
+      </label>
+      <label>
+        Ends
+        <input type="time" name="end_time" required value={v.end_time ?? ""} />
+      </label>
+    </div>
+    <label>
+      Location <small><a href="/admin/locations?edit=new#form" target="_blank">+ Add a new location</a></small>
+      <select name="location_id">
+        <option value="">— Not set yet —</option>
+        {
+          locations.map((l) => (
+            <option value={l.id} selected={v.location_id === l.id}>
+              {l.name}
+              {l.area ? ` · ${l.area}` : ""}
+              {l.capacity ? ` (fits ${l.capacity})` : ""}
+              {!l.active ? " — archived" : ""}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Seats &amp; price</legend>
+    <div class="form__grid">
+      <label>
+        Price <small>DH per seat</small>
+        <input type="number" name="price" min="0" value={v.price ?? 250} />
+      </label>
+      <label>
+        Seats in total
+        <input type="number" name="capacity" min="1" max="500" value={v.capacity ?? 12} />
+      </label>
+      <label>
+        Seats taken offline <small>Booked outside the site, no name added</small>
+        <input type="number" name="held_seats" min="0" max="500" value={v.held_seats ?? 0} />
+      </label>
+    </div>
+    {
+      v.id && (
+        <p class="muted seatline">
+          {booked} seat{booked === 1 ? "" : "s"} reserved by named guests · {v.seats_left} left on the site.
+          Tip: add DM bookings as guests on the event page instead of “offline” seats — then you have their names.
+        </p>
+      )
+    }
+  </fieldset>
+
+  <fieldset>
+    <legend>Status</legend>
+    <div class="statuses">
+      {
+        EVENT_STATUS_KEYS.map((k) => (
+          <label class="status">
+            <input type="radio" name="status" value={k} checked={(v.status ?? "draft") === k} />
+            <span>
+              <b>{EVENT_STATUS[k].label}</b>
+              <small>{EVENT_STATUS[k].hint}</small>
+            </span>
+          </label>
+        ))
+      }
+    </div>
+    <p class="muted seatline">“Full” and “Done” also happen on their own: when seats run out, and once the date has passed.</p>
+  </fieldset>
+
+  <ImageField name="image" label="Photo" current={v.image} />
+  <label>
+    Photo description <small>For screen readers — describe what's in the photo</small>
+    <input name="alt" maxlength="200" value={v.alt ?? ""} />
+  </label>
+
+  <label>
+    Private notes <small>Only the team sees these — materials to buy, who's hosting…</small>
+    <textarea name="notes" maxlength="2000">{v.notes ?? ""}</textarea>
+  </label>
+
+  <div class="actions">
+    <button class="abtn" type="submit">{submitLabel}</button>
+    <a class="abtn abtn--ghost" href={cancelHref}>Cancel</a>
+  </div>
+</form>
+
+<style>
+  fieldset {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .seatline {
+    font-size: 0.82rem;
+  }
+
+  .statuses {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.6rem;
+  }
+
+  .status {
+    display: flex !important;
+    align-items: flex-start;
+    gap: 0.6rem !important;
+    padding: 0.75rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .status:has(input:checked) {
+    border-color: var(--burgundy);
+    background: var(--rose-mist);
+  }
+
+  .status input {
+    margin-top: 0.2rem;
+    accent-color: var(--burgundy);
+  }
+
+  .status span {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .status small {
+    font-weight: 400;
+    line-height: 1.35;
+  }
+</style>

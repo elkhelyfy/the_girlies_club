@@ -1,0 +1,1177 @@
+---
+import "@fontsource-variable/josefin-sans";
+import "@fontsource-variable/jost";
+import "../styles/global.css";
+import { Image } from "astro:assets";
+import logo from "../assets/logo-wordmark.png";
+import { db } from "../lib/db";
+
+interface Props {
+  title: string;
+  /** Shown under the page title. */
+  intro?: string;
+}
+
+const { title, intro } = Astro.props;
+const path = Astro.url.pathname;
+const saved = Astro.url.searchParams.get("saved");
+const error = Astro.url.searchParams.get("error");
+
+// New requests waiting on the team — shown as a badge on "Reservations".
+const pending = (db.prepare("SELECT COUNT(*) AS n FROM reservations WHERE status = 'pending'").get() as { n: number }).n;
+
+const groups = [
+  {
+    heading: null,
+    links: [{ href: "/admin", label: "Overview", icon: "🌸" }],
+  },
+  {
+    heading: "Bookings",
+    links: [
+      { href: "/admin/events", label: "Events", icon: "📅" },
+      { href: "/admin/reservations", label: "Reservations", icon: "🎟️", badge: pending },
+      { href: "/admin/people", label: "Girlies", icon: "👯" },
+      { href: "/admin/locations", label: "Locations", icon: "📍" },
+    ],
+  },
+  {
+    heading: "Website",
+    links: [
+      { href: "/admin/wall", label: "The Wall", icon: "📸" },
+      { href: "/admin/testimonials", label: "Testimonials", icon: "💬" },
+      { href: "/admin/faq", label: "FAQ", icon: "❓" },
+      { href: "/admin/settings", label: "Site text", icon: "✏️" },
+      { href: "/admin/subscribers", label: "Mailing list", icon: "💌" },
+    ],
+  },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Admin · The Girlies Club</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script is:inline>document.documentElement.classList.add("js");</script>
+  </head>
+
+  <body class="admin">
+    <aside class="side">
+      <a class="side__logo" href="/admin">
+        <Image src={logo} alt="The Girlies Club" width={110} densities={[1, 2]} />
+        <span>Admin</span>
+      </a>
+
+      <nav class="side__nav" aria-label="Admin">
+        {
+          groups.map((group) => (
+            <div class="side__group">
+              {group.heading && <p class="side__heading">{group.heading}</p>}
+              {group.links.map((link) => {
+                const active = link.href === "/admin" ? path === "/admin" || path === "/admin/" : path.startsWith(link.href);
+                const badge = ("badge" in link ? link.badge : 0) ?? 0;
+                return (
+                  <a href={link.href} aria-current={active ? "page" : undefined}>
+                    <span aria-hidden="true">{link.icon}</span>
+                    {link.label}
+                    {badge > 0 && (
+                      <span class="side__badge" aria-label={`${badge} new`}>
+                        {badge}
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
+            </div>
+          ))
+        }
+      </nav>
+
+      <div class="side__foot">
+        <a href="/" target="_blank" rel="noopener">View site ↗</a>
+        <form method="post" action="/admin/logout">
+          <button type="submit">Log out</button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main__head">
+        <h1>{title}</h1>
+        {intro && <p>{intro}</p>}
+      </header>
+
+      <slot />
+    </main>
+
+    <!--
+      Feedback lives in toasts, outside <main>: after a save the page keeps its
+      scroll position, so a banner at the top would be off-screen.
+    -->
+    <div class="toasts" data-toasts aria-live="polite">
+      {
+        saved && (
+          <div class="toast toast--ok" data-toast>
+            <span class="toast__icon" aria-hidden="true">✓</span>
+            <p>{saved}</p>
+            <button type="button" class="toast__close" data-toast-close aria-label="Dismiss">×</button>
+          </div>
+        )
+      }
+      {
+        error && (
+          <div class="toast toast--err" role="alert" data-toast data-toast-sticky>
+            <span class="toast__icon" aria-hidden="true">!</span>
+            <p>{error}</p>
+            <button type="button" class="toast__close" data-toast-close aria-label="Dismiss">×</button>
+          </div>
+        )
+      }
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  .admin {
+    display: grid;
+    min-height: 100vh;
+    background: linear-gradient(160deg, var(--burgundy-tint) 0%, #fff7ed 60%, #fff 100%);
+    font-size: 0.95rem;
+  }
+
+  /* --- sidebar ------------------------------------------------------------ */
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.25rem;
+    background: var(--burgundy);
+    color: var(--parchment);
+  }
+
+  .side__logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .side__logo img {
+    width: 92px;
+    height: auto;
+  }
+
+  .side__logo span {
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--r-pill);
+    background: var(--parchment);
+    color: var(--burgundy);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .side__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+  }
+
+  .side__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .side__heading {
+    width: 100%;
+    margin: 0.5rem 0 0.15rem 0.8rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(248, 234, 205, 0.5);
+  }
+
+  .side__badge {
+    margin-left: auto;
+    min-width: 1.4rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: var(--r-pill);
+    background: var(--lime);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .side__nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.8rem;
+    border-radius: var(--r-sm);
+    color: var(--parchment-70);
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .side__nav a[aria-current="page"] {
+    background: var(--parchment);
+    color: var(--burgundy);
+    font-weight: 500;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .side__nav a:not([aria-current]):hover {
+      background: rgba(248, 234, 205, 0.12);
+      color: var(--parchment);
+    }
+  }
+
+  .side__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--parchment-line);
+    font-size: 0.85rem;
+  }
+
+  .side__foot button {
+    color: var(--parchment-70);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Phones: a compact bar — logo + log out, then one swipeable row of tabs. */
+  @media (max-width: 899px) {
+    .side {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem 0.6rem;
+    }
+
+    .side__logo img {
+      width: 72px;
+    }
+
+    .side__foot {
+      grid-row: 1;
+      grid-column: 2;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      gap: 0.9rem;
+    }
+
+    .side__nav {
+      grid-column: 1 / -1;
+      flex-wrap: nowrap;
+      gap: 0.25rem;
+      margin: 0 -1rem;
+      padding: 0 1rem 0.25rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .side__group {
+      flex-wrap: nowrap;
+    }
+
+    .side__heading {
+      display: none;
+    }
+
+    .side__nav a {
+      flex: none;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .admin {
+      grid-template-columns: 240px 1fr;
+    }
+
+    .side {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .side__nav,
+    .side__group {
+      flex-direction: column;
+      flex-wrap: nowrap;
+    }
+
+    .side {
+      overflow-y: auto;
+    }
+  }
+
+  /* --- main ---------------------------------------------------------------- */
+
+  .main {
+    width: 100%;
+    max-width: 1100px;
+    padding: clamp(1.25rem, 4vw, 2.75rem);
+  }
+
+  .main__head {
+    margin-bottom: 1.75rem;
+  }
+
+  .main__head h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+  }
+
+  .main__head p {
+    margin-top: 0.5rem;
+    color: var(--ink-60);
+  }
+
+  .flash {
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--r-sm);
+    font-weight: 500;
+  }
+
+  .flash--ok {
+    background: #dcfce7;
+    color: #14532d;
+  }
+
+  .flash--err {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  /* --- cards, tables, forms (shared by every admin page) ------------------- */
+
+  .panel {
+    margin-bottom: 1.5rem;
+    padding: clamp(1.1rem, 3vw, 1.6rem);
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-lg);
+    background: var(--paper);
+    box-shadow: var(--float);
+  }
+
+  .panel > h2 {
+    margin-bottom: 1rem;
+    font-family: var(--font-body);
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-transform: none;
+    line-height: 1.3;
+  }
+
+  .panel__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .panel__head h2 {
+    font-family: var(--font-body);
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  .form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .form__grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    /* Hints add a line to some labels — keep the inputs themselves in a row. */
+    align-items: end;
+  }
+
+  .admin label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .admin label small {
+    font-weight: 400;
+    color: var(--ink-40);
+  }
+
+  .admin label.check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 400;
+  }
+
+  .admin fieldset {
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-md);
+  }
+
+  .admin legend {
+    padding: 0 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .admin input:not([type="checkbox"]):not([type="file"]),
+  .admin select,
+  .admin textarea {
+    width: 100%;
+    padding: 0.65rem 0.8rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.18);
+    border-radius: var(--r-sm);
+    background: #fff;
+    font: inherit;
+    font-size: 0.95rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .admin textarea {
+    min-height: 6rem;
+    resize: vertical;
+  }
+
+  .admin input:focus,
+  .admin select:focus,
+  .admin textarea:focus {
+    outline: none;
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.15);
+  }
+
+  .admin input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--burgundy);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .abtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4em;
+    padding: 0.65rem 1.15rem;
+    border-radius: var(--r-sm);
+    background: var(--burgundy);
+    color: var(--parchment);
+    font-weight: 500;
+    line-height: 1;
+    transition: transform var(--press) var(--ease-out), background-color 0.15s ease;
+  }
+
+  .abtn:active {
+    transform: scale(0.97);
+  }
+
+  .abtn--ghost {
+    background: transparent;
+    color: var(--burgundy);
+    box-shadow: inset 0 0 0 1.5px var(--burgundy);
+  }
+
+  .abtn--danger {
+    background: transparent;
+    color: #b91c1c;
+    box-shadow: inset 0 0 0 1.5px #fca5a5;
+  }
+
+  .abtn--sm {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.82rem;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .table th {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+
+  .table td {
+    padding: 0.65rem 0.6rem;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+    vertical-align: middle;
+  }
+
+  .table tr.is-past td {
+    opacity: 0.55;
+  }
+
+  .thumb {
+    width: 52px;
+    height: 52px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--rose-mist);
+  }
+
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border-radius: var(--r-pill);
+    background: var(--burgundy-tint);
+    color: var(--burgundy);
+    font-size: 0.72rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .pill--muted {
+    background: rgba(10, 10, 10, 0.06);
+    color: var(--ink-60);
+  }
+
+  .row-actions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+  }
+
+  .row-actions form {
+    display: contents;
+  }
+
+  .js .nojs-only {
+    display: none;
+  }
+
+  /* Status pills used everywhere (events, reservations, payments). */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--r-pill);
+    background: var(--soft);
+    color: var(--ink-c);
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.45rem 0.9rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-pill);
+    background: var(--paper);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .tabs a span {
+    color: var(--ink-40);
+    font-size: 0.85em;
+  }
+
+  .tabs a[aria-current="page"] {
+    border-color: var(--burgundy);
+    background: var(--burgundy);
+    color: var(--parchment);
+  }
+
+  .tabs a[aria-current="page"] span {
+    color: var(--parchment-70);
+  }
+
+  .search {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .search input {
+    flex: 1;
+  }
+
+  .fill {
+    display: block;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--r-pill);
+    background: rgba(10, 10, 10, 0.07);
+  }
+
+  .fill i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--burgundy);
+  }
+
+  .muted {
+    color: var(--ink-60);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--burgundy);
+  }
+
+  .empty {
+    padding: 1.5rem;
+    border-radius: var(--r-md);
+    background: var(--rose-mist);
+    color: var(--ink-60);
+    text-align: center;
+  }
+
+  /* --- motion & feedback ----------------------------------------------------
+     A tool used all day: crisp and quick. Only feedback and state changes
+     move; nothing animates just to look nice. */
+
+  /* Buttons: hover only where there's a real pointer; every press scales. */
+  @media (hover: hover) and (pointer: fine) {
+    .abtn:not(.abtn--ghost):not(.abtn--danger):hover {
+      background: var(--burgundy-lift);
+    }
+
+    .abtn--ghost:hover {
+      background: var(--rose-mist);
+    }
+
+    .abtn--danger:hover {
+      background: #fef2f2;
+    }
+
+    .tabs a:not([aria-current]):hover {
+      border-color: rgba(177, 2, 61, 0.35);
+    }
+  }
+
+  .tabs a,
+  .side__nav a {
+    transition:
+      transform var(--press) var(--ease-out),
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .tabs a:active,
+  .side__nav a:active {
+    transform: scale(0.97);
+  }
+
+  /* Saving: dim only if it takes a beat, so fast saves don't flicker. */
+  .admin form[aria-busy="true"] {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.15s ease 0.12s;
+  }
+
+  /* The guest you just changed — she may have moved to another group. */
+  @keyframes just-updated {
+    from {
+      background-color: #fef9c3;
+      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.35);
+    }
+  }
+
+  .res.is-updated {
+    animation: just-updated 1.4s var(--ease-out);
+  }
+
+  /* <details> chevron: one small, consistent marker. */
+  .res__edit summary,
+  .admin details > summary.chev {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    list-style: none;
+  }
+
+  .res__edit summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .res__edit summary::before {
+    content: "›";
+    display: inline-block;
+    font-size: 1.15em;
+    line-height: 1;
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .res__edit[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  /* --- hold to delete ------------------------------------------------------ */
+
+  .abtn[data-hold] {
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+
+  .abtn[data-hold]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(220, 38, 38, 0.2);
+    clip-path: inset(0 100% 0 0);
+    /* Letting go: snap back quickly. */
+    transition: clip-path 0.2s var(--ease-out);
+    pointer-events: none;
+  }
+
+  .abtn[data-hold].is-holding::before {
+    clip-path: inset(0 0 0 0);
+    /* Holding: slow and steady — it's a timer, so linear. */
+    transition: clip-path 1s linear;
+  }
+
+  .abtn[data-hold].is-holding {
+    transform: scale(0.97);
+  }
+
+  /* --- toasts ------------------------------------------------------------- */
+
+  .toasts {
+    position: fixed;
+    right: 1.25rem;
+    bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    max-width: min(420px, calc(100vw - 2rem));
+    padding: 0.7rem 0.6rem 0.7rem 0.85rem;
+    border-radius: 14px;
+    background: var(--burgundy-dark);
+    color: var(--parchment);
+    box-shadow: 0 18px 40px -18px rgba(77, 1, 25, 0.7);
+    font-size: 0.9rem;
+    pointer-events: auto;
+    /* Arriving: a touch slower and softer, like Sonner. */
+    transition:
+      transform 0.4s var(--ease-out),
+      opacity 0.4s ease;
+  }
+
+  @starting-style {
+    .toast {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+
+  /* Leaving: quicker than arriving. */
+  .toast.is-leaving {
+    transform: translateY(6px) scale(0.98);
+    opacity: 0;
+    transition-duration: 0.2s;
+  }
+
+  .toast p {
+    flex: 1;
+    line-height: 1.35;
+  }
+
+  .toast__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: #16a34a;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .toast--err .toast__icon {
+    background: #dc2626;
+  }
+
+  .toast--info .toast__icon {
+    background: var(--parchment);
+    color: var(--burgundy-dark);
+    font-style: italic;
+    font-family: Georgia, serif;
+  }
+
+  .toast__close {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    color: var(--parchment-70);
+    font-size: 1.1rem;
+    transition:
+      background-color 0.15s ease,
+      transform var(--press) var(--ease-out);
+  }
+
+  .toast__close:active {
+    transform: scale(0.9);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .toast__close:hover {
+      background: rgba(248, 234, 205, 0.12);
+      color: var(--parchment);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .toasts {
+      left: 1rem;
+      right: 1rem;
+      align-items: stretch;
+    }
+
+    .toast {
+      max-width: none;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * The admin is used dozens of times a day, so it should feel instant:
+   *  - every POST form saves in the background and swaps only <main>
+   *  - feedback arrives as a toast where you're looking, not at the page top
+   *  - deletes are a deliberate press-and-hold instead of a pop-up
+   * All of it is progressive: with JS off, forms post and redirect normally.
+   */
+
+  /* --- toasts ------------------------------------------------------------- */
+
+  const tray = document.querySelector<HTMLElement>("[data-toasts]")!;
+  const LIFETIME = { normal: 4000, sticky: 9000 };
+  const MAX_TOASTS = 3;
+
+  function dismiss(toast: HTMLElement) {
+    if (toast.classList.contains("is-leaving")) return;
+    toast.classList.add("is-leaving"); // exit is faster than entry (see CSS)
+    const remove = () => toast.remove();
+    toast.addEventListener("transitionend", remove, { once: true });
+    window.setTimeout(remove, 320); // reduced motion: no transitionend
+  }
+
+  function arm(toast: HTMLElement) {
+    let remaining = toast.hasAttribute("data-toast-sticky") ? LIFETIME.sticky : LIFETIME.normal;
+    let started = 0;
+    let timer = 0;
+    const run = () => {
+      window.clearTimeout(timer);
+      started = Date.now();
+      timer = window.setTimeout(() => dismiss(toast), remaining);
+    };
+    const pause = () => {
+      window.clearTimeout(timer);
+      remaining = Math.max(1200, remaining - (Date.now() - started));
+    };
+    // Reading it? Don't take it away. Tab in the background? Same.
+    toast.addEventListener("pointerenter", pause);
+    toast.addEventListener("pointerleave", run);
+    const onVisibility = () => {
+      if (!toast.isConnected) return document.removeEventListener("visibilitychange", onVisibility);
+      document.hidden ? pause() : run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    toast.querySelector("[data-toast-close]")?.addEventListener("click", () => dismiss(toast));
+    run();
+  }
+
+  function trimToasts() {
+    const live = [...tray.querySelectorAll<HTMLElement>("[data-toast]:not(.is-leaving)")];
+    live.slice(0, Math.max(0, live.length - MAX_TOASTS)).forEach(dismiss);
+  }
+
+  function adoptToasts(from: ParentNode) {
+    from.querySelectorAll<HTMLElement>("[data-toast]").forEach((t) => {
+      const node = document.importNode(t, true) as HTMLElement;
+      tray.append(node);
+      arm(node);
+    });
+    trimToasts();
+  }
+
+  function toast(text: string) {
+    const node = document.createElement("div");
+    node.className = "toast toast--info";
+    node.dataset.toast = "";
+    node.innerHTML = `<span class="toast__icon" aria-hidden="true">i</span><p></p><button type="button" class="toast__close" data-toast-close aria-label="Dismiss">×</button>`;
+    node.querySelector("p")!.textContent = text;
+    tray.append(node);
+    arm(node);
+    trimToasts();
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-toast]").forEach(arm);
+
+  /** Drop ?saved= / ?error= so a refresh doesn't replay the message. */
+  const cleanUrl = (href: string) => {
+    const url = new URL(href, location.href);
+    url.searchParams.delete("saved");
+    url.searchParams.delete("error");
+    return url.pathname + url.search + url.hash;
+  };
+  history.replaceState(history.state, "", cleanUrl(location.href));
+
+  /* --- hold to delete ------------------------------------------------------ */
+  // Deleting is the one action that should feel deliberate: hold for a
+  // second while a red fill grows (linear — it's a timer). Letting go early
+  // snaps back fast. Keyboard users get a confirm dialog instead.
+
+  const HOLD_MS = 1000;
+  const approved = new WeakSet<HTMLElement>(); // submitters that already passed a hold/confirm
+  let holding: HTMLButtonElement | null = null;
+  let holdTimer = 0;
+  let justHeld: HTMLButtonElement | null = null;
+
+  const holdButton = (target: EventTarget | null) =>
+    (target as HTMLElement | null)?.closest?.<HTMLButtonElement>("button[data-hold]") ?? null;
+
+  function release() {
+    if (!holding) return;
+    window.clearTimeout(holdTimer);
+    holding.classList.remove("is-holding");
+    holding = null;
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    const button = holdButton(event.target);
+    if (!button || event.button !== 0) return;
+    holding = button;
+    button.classList.add("is-holding");
+    holdTimer = window.setTimeout(() => {
+      button.classList.remove("is-holding");
+      holding = null;
+      if (!button.isConnected) return; // the page was refreshed under her finger
+      justHeld = button;
+      approved.add(button);
+      button.form?.requestSubmit(button);
+    }, HOLD_MS);
+  });
+  document.addEventListener("pointerup", release);
+  document.addEventListener("pointercancel", release);
+  document.addEventListener("pointerout", (event) => {
+    if (holding && event.target === holding && !holding.contains(event.relatedTarget as Node | null)) release();
+  });
+  // Long-press on phones would otherwise open the context menu.
+  document.addEventListener("contextmenu", (event) => {
+    if (holdButton(event.target)) event.preventDefault();
+  });
+
+  document.addEventListener("click", (event) => {
+    const button = holdButton(event.target);
+    if (!button) return;
+    event.preventDefault(); // hold buttons only ever submit through the hold
+    if (justHeld === button) {
+      justHeld = null; // the click that ends a completed hold
+      return;
+    }
+    if (event.detail === 0) {
+      // Enter/Space: no way to "hold" — ask instead.
+      const message = button.dataset.confirm ?? button.form?.dataset.confirm ?? "Delete this?";
+      if (window.confirm(message)) {
+        approved.add(button);
+        button.form?.requestSubmit(button);
+      }
+      return;
+    }
+    toast("Press and hold to delete.");
+  });
+
+  /* --- saving in the background -------------------------------------------- */
+
+  // Status and payment dropdowns save the moment they change. Without JS a
+  // small "Save" button is shown next to them instead.
+  document.addEventListener("change", (event) => {
+    const field = event.target as HTMLElement;
+    if (field.matches("select[data-autosubmit]")) (field as HTMLSelectElement).form?.requestSubmit();
+  });
+
+  let rendered = location.pathname + location.search;
+
+  document.addEventListener("submit", (event) => {
+    const form = event.target as HTMLFormElement;
+    const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
+
+    if (submitter && approved.has(submitter)) {
+      approved.delete(submitter);
+    } else {
+      const message = submitter?.dataset.confirm ?? form.dataset.confirm;
+      if (message && !window.confirm(message)) {
+        event.preventDefault();
+        return;
+      }
+    }
+
+    const main = document.querySelector("main.main");
+    if (form.method.toLowerCase() !== "post" || !main?.contains(form)) return; // e.g. search, log out
+    event.preventDefault();
+    if (form.getAttribute("aria-busy") === "true") return; // double click
+    send(form, submitter);
+  });
+
+  async function send(form: HTMLFormElement, submitter: HTMLButtonElement | null) {
+    const body = new FormData(form, submitter);
+    const context = {
+      rowId: form.closest<HTMLElement>("[id^='res-']")?.id,
+      focusId: (document.activeElement as HTMLElement | null)?.id || undefined,
+    };
+    form.setAttribute("aria-busy", "true");
+
+    let response: Response;
+    let doc: Document;
+    try {
+      response = await fetch(form.action, { method: "POST", body, credentials: "same-origin" });
+      doc = new DOMParser().parseFromString(await response.text(), "text/html");
+    } catch {
+      form.removeAttribute("aria-busy");
+      nativeSubmit(form, submitter); // offline-ish: let the browser try
+      return;
+    }
+
+    const next = doc.querySelector("main.main");
+    if (!next) {
+      location.assign(response.url); // e.g. the session ran out → login page
+      return;
+    }
+    render(doc, next, response.url, context);
+  }
+
+  function render(doc: Document, next: Element, url: string, context: { rowId?: string; focusId?: string }) {
+    const target = new URL(url, location.href);
+    const samePage = target.pathname === location.pathname;
+    release(); // a hold in progress belongs to content that's about to go
+
+    document.querySelector("main.main")!.replaceWith(document.importNode(next, true));
+    const nav = doc.querySelector(".side__nav");
+    if (nav) document.querySelector(".side__nav")?.replaceWith(document.importNode(nav, true)); // badge counts
+    document.title = doc.title;
+
+    const clean = cleanUrl(target.href);
+    if (samePage) {
+      history.replaceState(history.state, "", clean);
+    } else {
+      history.pushState({ admin: true }, "", clean);
+      window.scrollTo(0, 0);
+    }
+    rendered = location.pathname + location.search;
+
+    adoptToasts(doc.querySelector("[data-toasts]") ?? doc);
+
+    // The guest you just changed may have moved to another group — mark her.
+    if (context.rowId) document.getElementById(context.rowId)?.classList.add("is-updated");
+    if (context.focusId) document.getElementById(context.focusId)?.focus({ preventScroll: true });
+  }
+
+  // Back/forward after a background save that changed pages: content and
+  // URL would disagree, so load the URL properly. Hash-only jumps are left alone.
+  window.addEventListener("popstate", () => {
+    if (location.pathname + location.search !== rendered) location.reload();
+  });
+
+  /* Fallback full post: keep the scroll position across the round trip. */
+  const SCROLL_KEY = `admin-scroll:${location.pathname}`;
+  function nativeSubmit(form: HTMLFormElement, submitter: HTMLButtonElement | null) {
+    if (submitter?.name) {
+      const carry = document.createElement("input");
+      carry.type = "hidden";
+      carry.name = submitter.name;
+      carry.value = submitter.value;
+      form.append(carry);
+    }
+    try {
+      sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+    } catch {}
+    form.submit();
+  }
+  try {
+    const y = sessionStorage.getItem(SCROLL_KEY);
+    if (y && !location.hash) window.scrollTo(0, Number(y));
+    sessionStorage.removeItem(SCROLL_KEY);
+  } catch {}
+</script>

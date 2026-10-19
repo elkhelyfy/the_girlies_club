@@ -1,0 +1,530 @@
+---
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import Badge from "../../../../components/admin/Badge.astro";
+import ReservationCard from "../../../../components/admin/ReservationCard.astro";
+import {
+  EVENT_STATUS,
+  EVENT_STATUS_KEYS,
+  PAYMENT,
+  PAYMENT_KEYS,
+  PHASE,
+  RESERVATION_STATUS,
+  SOURCES,
+  SOURCE_KEYS,
+  adminEvents,
+  deleteEvent,
+  duplicateEvent,
+  getEvent,
+  reservationsForEvent,
+  setEventStatus,
+  type EventStatus,
+} from "../../../../lib/bookings";
+import { handleReservationAction, safeBack, withFlash } from "../../../../lib/adminActions";
+import { formatDay, longDay } from "../../../../lib/dates";
+
+const id = Number(Astro.params.id);
+const here = `/admin/events/${id}`;
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const flash = handleReservationAction(form);
+  if (flash) return Astro.redirect(withFlash(safeBack(form, here), flash));
+
+  const intent = String(form.get("intent") ?? "");
+  if (intent === "event-status") {
+    const status = String(form.get("status")) as EventStatus;
+    if (EVENT_STATUS_KEYS.includes(status)) setEventStatus(id, status);
+    return Astro.redirect(withFlash(here, { saved: `Status: ${EVENT_STATUS[status]?.label ?? status}.` }));
+  }
+  if (intent === "event-duplicate") {
+    const copy = duplicateEvent(id);
+    if (copy) return Astro.redirect(withFlash(`/admin/events/${copy}/edit`, { saved: "Copied as a draft one week later — check the date, then open it." }));
+  }
+  if (intent === "event-delete") {
+    deleteEvent(id);
+    return Astro.redirect(withFlash("/admin/events", { saved: "Event deleted." }));
+  }
+}
+
+const event = getEvent(id);
+if (!event) return Astro.redirect(withFlash("/admin/events", { error: "That event doesn't exist." }));
+
+const guests = reservationsForEvent(id);
+const groups = [
+  { key: "new", title: "New requests", hint: "Waiting for you to confirm", list: guests.filter((r) => r.status === "pending") },
+  { key: "coming", title: "Coming", hint: "Confirmed seats", list: guests.filter((r) => r.status === "confirmed" || r.status === "attended") },
+  { key: "wait", title: "Wait list", hint: "Offered a seat if one frees up", list: guests.filter((r) => r.status === "waitlist") },
+  { key: "out", title: "Not coming", hint: "Cancelled or no-show", list: guests.filter((r) => r.status === "cancelled" || r.status === "no_show") },
+];
+
+// Seats: offline + confirmed/came + new requests, against capacity.
+const seatsOf = (statuses: string[]) => guests.filter((r) => statuses.includes(r.status)).reduce((n, r) => n + r.seats, 0);
+const confirmedSeats = seatsOf(["confirmed", "attended"]);
+const pendingSeats = seatsOf(["pending"]);
+const pct = (n: number) => `${Math.min(100, (n / event.capacity) * 100)}%`;
+const expected = (confirmedSeats + pendingSeats) * event.price;
+const paid = guests.filter((r) => r.payment === "paid").reduce((n, r) => n + r.seats * event.price, 0);
+const deposits = guests.filter((r) => r.payment === "deposit").length;
+const stillHolding = guests.filter((r) => RESERVATION_STATUS[r.status].holdsSeat).length;
+
+const moveTargets = adminEvents("upcoming").map((e) => ({ id: e.id, name: e.name, date: e.date }));
+const back = here;
+const phase = PHASE[event.phase];
+
+// The status buttons that make sense from where the event is now.
+const transitions: { to: EventStatus; label: string; confirm?: string; primary?: boolean }[] = [];
+if (event.status === "draft") transitions.push({ to: "open", label: "Publish & open bookings", primary: true });
+if (event.status === "open") transitions.push({ to: "closed", label: "Close bookings" });
+if (event.status === "closed") transitions.push({ to: "open", label: "Reopen bookings", primary: true });
+if (event.status === "cancelled") transitions.push({ to: "open", label: "Restore event", primary: true });
+if (event.status !== "done" && event.status !== "cancelled" && event.status !== "draft") transitions.push({ to: "done", label: "Mark as done" });
+if (event.status === "done") transitions.push({ to: "open", label: "Reopen" });
+if (event.status !== "draft" && event.status !== "cancelled") transitions.push({ to: "draft", label: "Back to draft" });
+if (event.status !== "cancelled")
+  transitions.push({
+    to: "cancelled",
+    label: "Cancel event",
+    confirm: stillHolding
+      ? `Cancel “${event.name}”? ${stillHolding} guest${stillHolding === 1 ? " has" : "s have"} a seat — you'll get a ready-made message for each.`
+      : `Cancel “${event.name}”?`,
+  });
+---
+
+<AdminLayout title={event.name}>
+  <a class="back-link" href="/admin/events">← All events</a>
+
+  <!-- Header -->
+  <section class="panel head">
+    <div class="head__top">
+      <div>
+        <p class="head__when">
+          {longDay(event.date)} · {event.start_time}–{event.end_time}
+        </p>
+        <p class="head__sub">
+          <Badge label={phase.label} color={phase.color} soft={phase.soft} />
+          <span>{event.craft} · {event.level} · {event.price} DH / seat</span>
+        </p>
+      </div>
+      <div class="actions">
+        <a class="abtn abtn--sm" href={`${here}/edit`}>Edit details</a>
+        <form method="post">
+          <button class="abtn abtn--ghost abtn--sm" name="intent" value="event-duplicate">Run it again</button>
+        </form>
+        {
+          event.status !== "draft" && (
+            <a class="abtn abtn--ghost abtn--sm" href={`/reserve/${event.id}`} target="_blank" rel="noopener">
+              View on site ↗
+            </a>
+          )
+        }
+        <a class="abtn abtn--ghost abtn--sm" href={`${here}/guests.csv`}>Guest list CSV</a>
+      </div>
+    </div>
+
+    <form method="post" class="head__status">
+      <input type="hidden" name="intent" value="event-status" />
+      <span class="muted">Status: <b>{EVENT_STATUS[event.status].label}</b></span>
+      {
+        transitions.map((t) => (
+          <button
+            class:list={["abtn abtn--sm", t.primary ? "" : t.to === "cancelled" ? "abtn--danger" : "abtn--ghost"]}
+            name="status"
+            value={t.to}
+            data-confirm={t.confirm}
+          >
+            {t.label}
+          </button>
+        ))
+      }
+    </form>
+  </section>
+
+  {
+    event.phase === "cancelled" && stillHolding > 0 && (
+      <p class="callout callout--red">
+        This event is cancelled but <b>{stillHolding}</b> guest{stillHolding === 1 ? " still has" : "s still have"} a seat. Tap
+        <b>WhatsApp</b> on each one — the message already says it's cancelled — then set them to “Cancelled” or move them to
+        another date.
+      </p>
+    )
+  }
+  {
+    event.phase === "open" && event.waitlist_count > 0 && (
+      <p class="callout callout--blue">
+        <b>{event.seats_left}</b> seat{event.seats_left === 1 ? " is" : "s are"} free and <b>{event.waitlist_count}</b> on the
+        wait list — tap “Give her a seat” below.
+      </p>
+    )
+  }
+
+  <!-- Numbers -->
+  <div class="stats">
+    <section class="panel stat stat--wide">
+      <h2>Seats</h2>
+      <p class="stat__big">
+        {event.capacity - event.seats_left}<small> / {event.capacity} taken</small>
+      </p>
+      <span class="bar" aria-hidden="true">
+        <i class="bar__held" style={`width:${pct(event.held_seats)}`} />
+        <i class="bar__conf" style={`width:${pct(confirmedSeats)}`} />
+        <i class="bar__pend" style={`width:${pct(pendingSeats)}`} />
+      </span>
+      <ul class="legend">
+        <li><i class="bar__conf" />{confirmedSeats} confirmed</li>
+        <li><i class="bar__pend" />{pendingSeats} waiting to confirm</li>
+        {event.held_seats > 0 && <li><i class="bar__held" />{event.held_seats} offline</li>}
+        <li><i />{event.seats_left} free</li>
+      </ul>
+    </section>
+    <section class="panel stat">
+      <h2>Money</h2>
+      <p class="stat__big">{paid}<small> DH paid</small></p>
+      <p class="muted">
+        {expected} DH expected from guests{deposits > 0 && ` · ${deposits} deposit${deposits === 1 ? "" : "s"}`}
+      </p>
+    </section>
+    <section class="panel stat">
+      <h2>Where</h2>
+      {
+        event.location_name ? (
+          <>
+            <p class="stat__place">
+              <b>{event.location_name}</b>
+              {event.location_area && <span class="muted"> · {event.location_area}</span>}
+            </p>
+            {event.location_address && <p class="muted">{event.location_address}</p>}
+            <p class="actions">
+              {event.location_maps_url && (
+                <a href={event.location_maps_url} target="_blank" rel="noopener">
+                  Open map ↗
+                </a>
+              )}
+              <a href={`/admin/locations?edit=${event.location_id}#form`}>Edit location</a>
+            </p>
+          </>
+        ) : (
+          <p class="muted">
+            No location yet. <a href={`${here}/edit`}>Pick one</a>
+          </p>
+        )
+      }
+    </section>
+  </div>
+
+  {
+    event.notes && (
+      <section class="panel notes">
+        <h2>📝 Team notes</h2>
+        <p>{event.notes}</p>
+      </section>
+    )
+  }
+
+  <!-- Guests -->
+  <section class="panel">
+    <div class="panel__head">
+      <h2>Guests <span class="muted">({guests.length})</span></h2>
+    </div>
+
+    <details class="add" open={guests.length === 0}>
+      <summary class="abtn abtn--sm">+ Add a guest</summary>
+      <form method="post" class="form add__form">
+        <input type="hidden" name="intent" value="res-add" />
+        <input type="hidden" name="event_id" value={event.id} />
+        <input type="hidden" name="back" value={back} />
+        <p class="muted">For bookings that came by Instagram DM, WhatsApp or in person.</p>
+        <div class="form__grid">
+          <label>Name <input name="name" required maxlength="80" /></label>
+          <label>Phone / WhatsApp <input name="phone" type="tel" maxlength="30" placeholder="06 12 34 56 78" /></label>
+          <label>Instagram <input name="instagram" maxlength="60" placeholder="@" /></label>
+          <label>Email <input name="email" type="email" maxlength="254" /></label>
+        </div>
+        <div class="form__grid">
+          <label>Seats <input name="seats" type="number" min="1" max="50" value="1" /></label>
+          <label>
+            Status
+            <select name="status">
+              <option value="confirmed" selected>Confirmed</option>
+              <option value="pending">New request</option>
+              <option value="waitlist">Wait list</option>
+            </select>
+          </label>
+          <label>
+            Payment
+            <select name="payment">{PAYMENT_KEYS.map((k) => <option value={k}>{PAYMENT[k].label}</option>)}</select>
+          </label>
+          <label>
+            Booked via
+            <select name="source">
+              {SOURCE_KEYS.filter((k) => k !== "website").map((k) => <option value={k}>{SOURCES[k]}</option>)}
+            </select>
+          </label>
+        </div>
+        <label>Private notes <textarea name="admin_notes" maxlength="2000" rows="2"></textarea></label>
+        <div class="actions">
+          <button class="abtn">Add guest</button>
+        </div>
+      </form>
+    </details>
+
+    {
+      guests.length === 0 ? (
+        <p class="empty">No reservations yet. Share the link: <code>/reserve/{event.id}</code></p>
+      ) : (
+        groups
+          .filter((g) => g.list.length)
+          .map((g) => (
+            <div class="group">
+              <h3 class="group__title">
+                {g.title} <span>{g.list.length}</span> <small>{g.hint}</small>
+              </h3>
+              <ul class="group__list">
+                {g.list.map((r) => (
+                  <ReservationCard r={r} event={event} back={back} moveTargets={moveTargets} />
+                ))}
+              </ul>
+            </div>
+          ))
+      )
+    }
+  </section>
+
+  <section class="danger">
+    <form method="post" data-confirm={`Delete “${event.name}” and all ${guests.length} reservations? This can't be undone. Cancelling keeps the history.`}>
+      <button class="abtn abtn--danger abtn--sm" name="intent" value="event-delete" data-hold title="Press and hold to delete">Hold to delete this event</button>
+    </form>
+    <p class="muted">Prefer “Cancel event” — it keeps the guest list.</p>
+  </section>
+
+  <p class="muted footnote">Event #{event.id} · {formatDay(event.date)} · booking link: <code>/reserve/{event.id}</code></p>
+</AdminLayout>
+
+<style>
+  .head {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .head__top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .head__top form {
+    display: contents;
+  }
+
+  .head__when {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--burgundy);
+  }
+
+  .head__sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    font-size: 0.9rem;
+    color: var(--ink-60);
+  }
+
+  .head__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(10, 10, 10, 0.08);
+  }
+
+  .head__status > span {
+    margin-right: 0.5rem;
+    font-size: 0.88rem;
+  }
+
+  .callout {
+    margin-bottom: 1.25rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--r-md);
+    font-size: 0.92rem;
+  }
+
+  .callout--red {
+    background: #fee2e2;
+    color: #7f1d1d;
+  }
+
+  .callout--blue {
+    background: #dbeafe;
+    color: #1e3a8a;
+  }
+
+  .stats {
+    display: grid;
+    gap: 0 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .stat h2,
+  .notes h2 {
+    margin-bottom: 0.5rem;
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+
+  .stat__big {
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  .stat__big small {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--ink-60);
+  }
+
+  .stat .actions {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .stat a {
+    color: var(--burgundy);
+    font-weight: 500;
+  }
+
+  .bar {
+    display: flex;
+    height: 10px;
+    margin: 0.75rem 0 0.6rem;
+    overflow: hidden;
+    border-radius: var(--r-pill);
+    background: rgba(10, 10, 10, 0.07);
+  }
+
+  .bar i,
+  .legend i {
+    display: block;
+  }
+
+  .legend i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(10, 10, 10, 0.12);
+  }
+
+  .bar .bar__conf,
+  .legend .bar__conf {
+    background: #16a34a;
+  }
+
+  .bar .bar__pend,
+  .legend .bar__pend {
+    background: #f59e0b;
+  }
+
+  .bar .bar__held,
+  .legend .bar__held {
+    background: #a78bfa;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    font-size: 0.8rem;
+    color: var(--ink-60);
+  }
+
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .notes p {
+    white-space: pre-line;
+  }
+
+  .add {
+    margin-bottom: 1.25rem;
+  }
+
+  .add summary {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .add summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .add__form {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: var(--r-md);
+    background: var(--rose-mist);
+  }
+
+  .group + .group {
+    margin-top: 1.5rem;
+  }
+
+  .group__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: none;
+  }
+
+  .group__title span {
+    padding: 0 0.45rem;
+    border-radius: var(--r-pill);
+    background: var(--burgundy-tint);
+    color: var(--burgundy);
+    font-size: 0.8rem;
+  }
+
+  .group__title small {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--ink-60);
+  }
+
+  .group__list {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .danger {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .danger p {
+    font-size: 0.85rem;
+  }
+
+  .footnote {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+  }
+</style>

@@ -1,0 +1,177 @@
+---
+/** One piece on the wall: the photo, and who made it (their Instagram). */
+import type { WallPost } from "../lib/content";
+import { CRAFT_TONE, instagramUrl, tone } from "../lib/content";
+import Icon from "./ui/Icon.astro";
+import Pic from "./ui/Pic.astro";
+
+interface Props {
+  post: WallPost;
+  index?: number;
+  /** "grid" keeps a square (or tall) crop; "free" keeps the photo's own shape. */
+  layout?: "grid" | "free";
+}
+
+const { post: p, index = 0, layout = "grid" } = Astro.props;
+const dot = tone(CRAFT_TONE[p.craft] ?? "blush").soft;
+---
+
+<li
+  class:list={["tile", `tile--${layout}`, { "tile--tall": layout === "grid" && p.tall === 1 }]}
+  data-reveal
+  data-craft={p.craft}
+  style={`--reveal-delay:${(index % 5) * 70}ms`}
+>
+  <Pic src={p.image} alt={p.alt} widths={[280, 460, 640]} sizes="(min-width: 1100px) 300px, (min-width: 640px) 32vw, 46vw" />
+
+  {
+    p.featured === 1 && (
+      <span class="tile__flag">
+        <Icon name="heart" /> Featured
+      </span>
+    )
+  }
+
+  <div class="tile__foot">
+    <a class="tile__who" href={instagramUrl(p.instagram)} target="_blank" rel="noopener">
+      <i style={`background:${dot}`} aria-hidden="true"><Icon name="instagram" /></i>
+      <span>
+        <b>@{p.instagram}</b>
+        <em>{[p.craft, p.title].filter(Boolean).join(" · ")}</em>
+      </span>
+      <span class="sr-only">(opens Instagram)</span>
+    </a>
+  </div>
+</li>
+
+<style>
+  .tile {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--r-md);
+    /* Several photos are cut-out PNGs — a light backing keeps them reading as
+       flat-lay shots on the dark wall. */
+    background: #f7efe9;
+    transition: transform 0.3s var(--ease-out);
+  }
+
+  .tile--grid {
+    aspect-ratio: 1;
+  }
+
+  .tile--grid > :global(img) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (min-width: 640px) {
+    .tile--tall {
+      grid-row: span 2;
+      aspect-ratio: auto;
+    }
+  }
+
+  .tile--free {
+    break-inside: avoid;
+    margin-bottom: 0.9rem;
+  }
+
+  .tile--free > :global(img) {
+    width: 100%;
+    height: auto;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .tile:hover {
+      transform: translateY(-4px);
+    }
+  }
+
+  .tile::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 55%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
+    pointer-events: none;
+  }
+
+  .tile__flag {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.3rem 0.65rem;
+    border-radius: var(--r-pill);
+    background: var(--lime);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+
+  .tile__foot {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    padding: 0.7rem;
+    color: var(--paper);
+  }
+
+  .tile__who {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .tile__who i {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    color: var(--burgundy);
+    font-size: 0.85rem;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .tile__who > span:not(.sr-only) {
+    display: grid;
+    min-width: 0;
+  }
+
+  .tile__who b {
+    overflow: hidden;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tile__who em {
+    overflow: hidden;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.68rem;
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tile__who:active i {
+    transform: scale(0.9);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .tile__who:hover b {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+</style>

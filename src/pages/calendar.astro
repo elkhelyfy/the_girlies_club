@@ -1,0 +1,818 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import SessionCard from "../components/SessionCard.astro";
+import Button from "../components/ui/Button.astro";
+import Eyebrow from "../components/ui/Eyebrow.astro";
+import Flower from "../components/ui/Flower.astro";
+import Sticker from "../components/ui/Sticker.astro";
+import { CRAFT_TONE, todayISO, tone } from "../lib/content";
+import { eventsBetween, upcomingEvents, type EventRow } from "../lib/bookings";
+import { daysInMonth, iso, longDay, mondayIndex, monthTitle, shiftMonth } from "../lib/dates";
+
+const today = todayISO();
+const [ty, tm] = today.split("-").map(Number);
+
+// ?month=2026-11 — clamped to this month … two years ahead. The calendar only
+// looks forward: it's for planning, not an archive.
+const param = Astro.url.searchParams.get("month") ?? "";
+let { y, m } = { y: ty, m: tm };
+if (/^\d{4}-\d{2}$/.test(param)) {
+  const [py, pm] = param.split("-").map(Number);
+  const index = py * 12 + pm - 1;
+  const min = ty * 12 + tm - 1;
+  if (pm >= 1 && pm <= 12 && index >= min && index <= min + 24) ({ y, m } = { y: py, m: pm });
+}
+
+const days = daysInMonth(y, m);
+const lead = mondayIndex(y, m, 1);
+const monthEvents = eventsBetween(iso(y, m, 1), iso(y, m, days));
+const byDay = monthEvents.reduce((map, e) => map.set(e.date, [...(map.get(e.date) ?? []), e]), new Map<string, EventRow[]>());
+
+const prev = shiftMonth(y, m, -1);
+const next = shiftMonth(y, m, 1);
+const canGoBack = prev.y * 12 + prev.m >= ty * 12 + tm;
+const monthParam = (d: { y: number; m: number }) => `${d.y}-${String(d.m).padStart(2, "0")}`;
+
+const cells: ({ day: number; date: string } | null)[] = [
+  ...Array.from({ length: lead }, () => null),
+  ...Array.from({ length: days }, (_, i) => ({ day: i + 1, date: iso(y, m, i + 1) })),
+];
+while (cells.length % 7) cells.push(null);
+
+// Cancelled sessions stay listed (struck through) so anyone who booked sees it.
+const upcoming = upcomingEvents({ withCancelled: true });
+const live = upcoming.filter((e) => e.phase !== "cancelled");
+const groups = upcoming.reduce((map, e) => {
+  const key = e.date.slice(0, 7);
+  return map.set(key, [...(map.get(key) ?? []), e]);
+}, new Map<string, EventRow[]>());
+
+// The calendar colours by craft (matching the key); cards keep their own colour.
+const craftTone = (e: EventRow) => tone(CRAFT_TONE[e.craft] ?? e.tone);
+
+const legend = Object.entries(CRAFT_TONE).filter(([craft]) => upcoming.some((e) => e.craft === craft));
+const { handle, instagramUrl } = Astro.locals.settings;
+---
+
+<Base
+  title="Calendar — The Girlies Club workshops in Casablanca"
+  description="Every upcoming Girlies Club workshop: crochet, peinture and broderie dates in Casablanca, with seats left and how to book."
+>
+  <Header />
+
+  <main id="main" class="calpage">
+    <section class="intro">
+      <span class="intro__flower intro__flower--l" aria-hidden="true">
+        <Flower name="tulip" size={92} rotate={-14} float={8} />
+      </span>
+      <span class="intro__flower intro__flower--r" aria-hidden="true">
+        <Flower name="tulip" size={70} rotate={12} float={10} delay={1.5} />
+      </span>
+      <span class="intro__sticker" aria-hidden="true">
+        <Sticker lines={["Save", "the", "date"]} fill="var(--blush)" ink="var(--burgundy-dark)" rotate={-10} />
+      </span>
+
+      <div class="shell center-col intro__inner" data-reveal>
+        <Eyebrow icon="📅">The calendar</Eyebrow>
+        <h1 class="display display--xl">
+          Save the date,<br />
+          <span class="tint-loud">girlie</span>
+        </h1>
+        <p class="lede">
+          {
+            live.length
+              ? `${live.length} workshop${live.length === 1 ? "" : "s"} coming up. Pick a day, reserve your seat, bring nothing but yourself.`
+              : `New dates are on their way — follow ${handle} to hear first.`
+          }
+        </p>
+      </div>
+    </section>
+
+    <section class="shell month" aria-labelledby="month-title" data-reveal>
+      <div class="month__card" data-month-card data-month={monthParam({ y, m })}>
+        <header class="month__head" data-month-head>
+          {
+            canGoBack ? (
+              <a
+                class="month__nav"
+                href={`/calendar?month=${monthParam(prev)}#month-title`}
+                aria-label={`Previous month, ${monthTitle(prev.y, prev.m)}`}
+                data-month-nav="-1"
+              >
+                ←
+              </a>
+            ) : (
+              <span class="month__nav is-disabled" aria-hidden="true">←</span>
+            )
+          }
+          <h2 id="month-title" class="month__title" aria-live="polite">{monthTitle(y, m)}</h2>
+          <a
+            class="month__nav"
+            href={`/calendar?month=${monthParam(next)}#month-title`}
+            aria-label={`Next month, ${monthTitle(next.y, next.m)}`}
+            data-month-nav="1"
+          >
+            →
+          </a>
+        </header>
+
+        <div class="grid__row grid__row--head" aria-hidden="true">
+            {
+              ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                <span class:list={["grid__dow", { "is-weekend": d === "Sat" || d === "Sun" }]}>
+                  {d}
+                </span>
+              ))
+            }
+        </div>
+
+        <div class="month__body" data-month-body>
+        <div class="grid">
+          {
+            Array.from({ length: cells.length / 7 }, (_, row) => (
+              <div class="grid__row">
+                {cells.slice(row * 7, row * 7 + 7).map((cell) => {
+                  if (!cell) return <span class="day day--blank" aria-hidden="true" />;
+                  const events = byDay.get(cell.date) ?? [];
+                  const first = events.find((e) => e.phase !== "cancelled");
+                  const firstTone = first ? craftTone(first) : null;
+                  return (
+                    <div
+                      class:list={[
+                        "day",
+                        { "is-past": cell.date < today, "is-today": cell.date === today, "has-events": firstTone },
+                      ]}
+                      style={firstTone ? `--accent:${firstTone.accent}; --soft:${firstTone.soft}` : undefined}
+                    >
+                      <span class="day__num" aria-hidden="true">{cell.day}</span>
+                      {cell.date === today && <span class="day__today" aria-hidden="true">today</span>}
+                      {events.map((e) => {
+                        const t = craftTone(e);
+                        return (
+                          <a
+                            class:list={["day__event", { "is-cancelled": e.phase === "cancelled", "is-full": e.phase === "full" }]}
+                            href={`#event-${e.id}`}
+                            style={`--accent:${t.accent}; --soft:${t.soft}`}
+                            title={`${e.name} · ${e.start_time}${e.phase === "cancelled" ? " · cancelled" : e.phase === "full" ? " · full" : ""}`}
+                          >
+                            <i aria-hidden="true" />
+                            <span>
+                              <span class="sr-only">{longDay(e.date)}, </span>
+                              <b>{e.start_time}</b> {e.name}
+                              {e.phase === "cancelled" && <span class="sr-only"> (cancelled)</span>}
+                              {e.phase === "full" && <em class="day__full">full</em>}
+                            </span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          }
+        </div>
+
+        {
+          !monthEvents.some((e) => e.phase !== "cancelled") && (
+            <p class="month__empty">
+              Nothing in {monthTitle(y, m).split(" ")[0]} yet —{" "}
+              {live.length ? "check the next months, or see the list below." : `follow ${handle} for new dates.`}
+            </p>
+          )
+        }
+        </div>
+
+        {
+          legend.length > 0 && (
+            <ul class="legend" aria-label="Colour key">
+              {legend.map(([craft, key]) => (
+                <li style={`--accent:${tone(key).accent}`} lang="fr">
+                  <i aria-hidden="true" />
+                  {craft}
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
+    </section>
+
+    <section class="shell list" aria-labelledby="list-title">
+      <h2 id="list-title" class="display display--lg list__title" data-reveal>
+        Coming <span class="tint-heat">up</span>
+      </h2>
+
+      {
+        live.length ? (
+          [...groups].map(([key, events]) => {
+            const [gy, gm] = key.split("-").map(Number);
+            return (
+              <div class="list__group">
+                <h3 class="list__month" data-reveal>
+                  {monthTitle(gy, gm)}
+                  <span>
+                    {events.length} date{events.length === 1 ? "" : "s"}
+                  </span>
+                </h3>
+                <ul class="list__grid">
+                  {events.map((event, i) => (
+                    <SessionCard event={event} index={i} withIcs />
+                  ))}
+                </ul>
+              </div>
+            );
+          })
+        ) : (
+          <div class="list__empty" data-reveal>
+            <Flower name="tulip" size={64} rotate={-8} float={0} />
+            <p>No dates on the calendar right now. They drop on Instagram first.</p>
+            <Button href={instagramUrl} external variant="solid" arrow>
+              Follow {handle}
+            </Button>
+          </div>
+        )
+      }
+
+      <p class="list__private" data-reveal>
+        Want a date just for your group? <a href="/#private">We come to you →</a>
+      </p>
+    </section>
+  </main>
+
+  <Footer />
+</Base>
+
+<script>
+  /*
+   * Month-to-month without a page reload.
+   *
+   * The arrows are ordinary links (so everything works without JS). Here we
+   * fetch the target month, swap just the days and the title, and slide them:
+   * the old month leaves in one direction while the new one arrives from the
+   * other, overlapping, with a 2px blur so the crossfade reads as one motion.
+   * Neighbouring months are prefetched, so a click usually animates instantly.
+   */
+  const card = document.querySelector<HTMLElement>("[data-month-card]");
+
+  if (card) {
+    const EASE = "cubic-bezier(0.23, 1, 0.32, 1)"; // --ease-out in global.css
+    const DURATION = 320;
+    const SHIFT = 44; // px each month travels
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const pages = new Map<string, Promise<Document>>();
+    const keyOf = (href: string) => {
+      const url = new URL(href, location.href);
+      return url.pathname + url.search;
+    };
+
+    const load = (href: string) => {
+      const key = keyOf(href);
+      let page = pages.get(key);
+      if (!page) {
+        page = fetch(key, { headers: { Accept: "text/html" } })
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.text();
+          })
+          .then((html) => new DOMParser().parseFromString(html, "text/html"));
+        page.catch(() => pages.delete(key));
+        pages.set(key, page);
+      }
+      return page;
+    };
+
+    const prefetchNeighbours = () => {
+      const run = () =>
+        card.querySelectorAll<HTMLAnchorElement>("a[data-month-nav]").forEach((a) => load(a.href).catch(() => {}));
+      "requestIdleCallback" in window ? requestIdleCallback(run) : setTimeout(run, 200);
+    };
+
+    let ticket = 0;
+    let running: Animation[] = [];
+    let ghost: HTMLElement | null = null;
+
+    const settle = () => {
+      running.forEach((a) => a.cancel());
+      running = [];
+      ghost?.remove();
+      ghost = null;
+    };
+
+    async function show(href: string, dir: number, push: boolean) {
+      const mine = ++ticket;
+      let doc: Document;
+      try {
+        doc = await load(href);
+      } catch {
+        location.href = href; // network trouble — fall back to a normal visit
+        return;
+      }
+      if (mine !== ticket) return; // a newer click won
+
+      const nextHead = doc.querySelector("[data-month-head]");
+      const nextBody = doc.querySelector("[data-month-body]");
+      const head = card!.querySelector("[data-month-head]");
+      const body = card!.querySelector<HTMLElement>("[data-month-body]");
+      if (!nextHead || !nextBody || !head || !body) {
+        location.href = href;
+        return;
+      }
+
+      // Interrupted mid-slide? Jump the old animation to its end first.
+      settle();
+
+      const focusedDir = (document.activeElement as HTMLElement | null)?.closest("[data-month-nav]")?.getAttribute("data-month-nav");
+      const fromHeight = body.offsetHeight;
+
+      // Leave a copy of the old month in place to animate out.
+      if (!reduceMotion.matches) {
+        ghost = body.cloneNode(true) as HTMLElement;
+        ghost.removeAttribute("data-month-body");
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.inert = true;
+        Object.assign(ghost.style, {
+          position: "absolute",
+          top: `${body.offsetTop}px`,
+          left: `${body.offsetLeft}px`,
+          width: `${body.offsetWidth}px`,
+          pointerEvents: "none",
+        });
+        card!.append(ghost);
+      }
+
+      head.replaceWith(document.importNode(nextHead, true));
+      body.replaceChildren(...Array.from(nextBody.childNodes, (n) => document.importNode(n, true)));
+      card!.dataset.month = (doc.querySelector("[data-month-card]") as HTMLElement | null)?.dataset.month ?? "";
+
+      if (push) history.pushState({ calendar: true }, "", keyOf(href));
+      document.title = doc.title;
+
+      // Keep keyboard users on the arrow they pressed.
+      if (focusedDir) {
+        const again =
+          card!.querySelector<HTMLElement>(`a[data-month-nav="${focusedDir}"]`) ??
+          card!.querySelector<HTMLElement>("a[data-month-nav]");
+        again?.focus({ preventScroll: true });
+      }
+
+      if (!reduceMotion.matches && ghost) {
+        const toHeight = body.offsetHeight;
+        const timing = { duration: DURATION, easing: EASE };
+        const title = card!.querySelector<HTMLElement>(".month__title");
+
+        running = [
+          ghost.animate(
+            [
+              { transform: "translateX(0)", opacity: 1, filter: "blur(0)" },
+              { transform: `translateX(${-dir * SHIFT}px)`, opacity: 0, filter: "blur(2px)" },
+            ],
+            { duration: DURATION * 0.8, easing: EASE, fill: "forwards" },
+          ),
+          body.animate(
+            [
+              { transform: `translateX(${dir * SHIFT}px)`, opacity: 0, filter: "blur(2px)" },
+              { transform: "translateX(0)", opacity: 1, filter: "blur(0)" },
+            ],
+            timing,
+          ),
+        ];
+        if (title) {
+          running.push(
+            title.animate(
+              [
+                { transform: `translateX(${dir * 18}px)`, opacity: 0 },
+                { transform: "translateX(0)", opacity: 1 },
+              ],
+              timing,
+            ),
+          );
+        }
+        // Five-week and six-week months differ in height — glide between them.
+        if (fromHeight !== toHeight) {
+          running.push(body.animate([{ height: `${fromHeight}px` }, { height: `${toHeight}px` }], timing));
+        }
+
+        // Tidy up only once every part has landed (the ghost finishes first).
+        Promise.all(running.map((a) => a.finished)).then(() => mine === ticket && settle(), () => {});
+      }
+
+      prefetchNeighbours();
+    }
+
+    card.addEventListener("click", (event) => {
+      const link = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[data-month-nav]");
+      if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+      event.preventDefault();
+      show(link.href, Number(link.dataset.monthNav) || 1, true);
+    });
+
+    // Back / forward buttons: slide the way the user is travelling in time.
+    window.addEventListener("popstate", () => {
+      if (location.pathname !== "/calendar") return;
+      const target = new URL(location.href).searchParams.get("month") ?? "";
+      const current = card.dataset.month ?? "";
+      show(location.href, target && current && target < current ? -1 : 1, false);
+    });
+
+    history.replaceState({ calendar: true }, "");
+    prefetchNeighbours();
+  }
+</script>
+
+<style>
+  .calpage {
+    background: var(--page-wash);
+  }
+
+  /* --- intro --------------------------------------------------------------- */
+
+  .intro {
+    position: relative;
+    overflow: hidden;
+    padding-block: clamp(4rem, 9vw, 6.5rem) clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .intro__inner {
+    gap: 1.25rem;
+  }
+
+  .intro__flower {
+    position: absolute;
+  }
+
+  .intro__flower--l {
+    left: clamp(0.5rem, 6vw, 7rem);
+    bottom: 0;
+  }
+
+  .intro__flower--r {
+    right: clamp(1rem, 12vw, 14rem);
+    top: 18%;
+  }
+
+  .intro__sticker {
+    position: absolute;
+    right: clamp(0.5rem, 5vw, 5rem);
+    bottom: 8%;
+    width: clamp(84px, 10vw, 128px);
+  }
+
+  @media (max-width: 720px) {
+    .intro__flower,
+    .intro__sticker {
+      display: none;
+    }
+  }
+
+  /* --- month card -------------------------------------------------------- */
+
+  .month {
+    padding-bottom: clamp(3rem, 6vw, 4.5rem);
+  }
+
+  .month__card {
+    position: relative;
+    /* Keeps the outgoing month inside the card while it slides away. */
+    overflow: clip;
+    padding: clamp(1rem, 3vw, 2rem);
+    border: var(--edge);
+    border-radius: var(--r-xl);
+    background:
+      radial-gradient(circle at 1px 1px, rgba(177, 2, 61, 0.1) 1px, transparent 0) 0 0 / 18px 18px,
+      var(--paper);
+    box-shadow: var(--float);
+  }
+
+  .month__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .month__title {
+    font-size: var(--step-3);
+    color: var(--burgundy);
+    text-align: center;
+  }
+
+  .month__nav {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: var(--edge);
+    border-radius: 50%;
+    background: var(--pink-soft);
+    font-size: 1.15rem;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .month__nav:active {
+    transform: scale(0.94);
+  }
+
+  .month__nav.is-disabled {
+    opacity: 0.3;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .month__nav:not(.is-disabled):hover {
+      background: var(--blush);
+    }
+  }
+
+  .grid {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .grid__row--head {
+    margin-bottom: 0.4rem;
+  }
+
+  /* The sliding part. The script animates its height when the number of
+     weeks changes, so the card grows or shrinks instead of jumping. */
+  .month__body {
+    position: relative;
+  }
+
+  .grid__row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .grid__dow {
+    padding-bottom: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--ink-40);
+  }
+
+  .grid__dow.is-weekend {
+    color: var(--burgundy);
+  }
+
+  .day {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: clamp(3.4rem, 9vw, 7rem);
+    padding: 0.4rem;
+    border: 1px solid rgba(10, 10, 10, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .day--blank {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .day.is-past {
+    opacity: 0.4;
+  }
+
+  .day.has-events {
+    border: 1.5px solid var(--accent);
+    background: var(--soft);
+  }
+
+  .day.is-today {
+    box-shadow: 0 0 0 2px var(--burgundy);
+  }
+
+  .day__num {
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .day__today {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.4rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--r-pill);
+    background: var(--burgundy);
+    color: var(--parchment);
+    font-size: 0.6rem;
+    font-weight: 500;
+  }
+
+  .day__event {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 0.7rem;
+    line-height: 1.25;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .day__event:active {
+    transform: scale(0.96);
+  }
+
+  .day__event i {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin-top: 0.3em;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .day__event b {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .day__event.is-cancelled {
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+
+  .day__full {
+    margin-left: 0.25em;
+    padding: 0 0.3em;
+    border-radius: 4px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.6rem;
+    font-style: normal;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .day__event:hover {
+      box-shadow: inset 0 0 0 1.5px var(--accent);
+    }
+  }
+
+  /* Phones: day cells are too narrow for names — show a dot per event. */
+  @media (max-width: 720px) {
+    .grid,
+    .grid__row {
+      gap: 0.25rem;
+    }
+
+    .grid__row--head {
+      margin-bottom: 0.25rem;
+    }
+
+    .day {
+      align-items: center;
+      padding: 0.35rem 0.1rem;
+      border-radius: 10px;
+    }
+
+    .day__today {
+      display: none;
+    }
+
+    .day__event {
+      padding: 0;
+      background: none;
+    }
+
+    .day__event span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .day__event i {
+      width: 9px;
+      height: 9px;
+      margin: 0;
+    }
+  }
+
+  .month__empty {
+    margin-top: 1.25rem;
+    color: var(--ink-60);
+    text-align: center;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.25rem;
+    margin-top: 1.25rem;
+    font-size: var(--step--1);
+  }
+
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+  }
+
+  .legend i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* --- list -------------------------------------------------------------- */
+
+  .list {
+    padding-bottom: var(--section-y);
+  }
+
+  .list__title {
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+
+  .list__group + .list__group {
+    margin-top: 3rem;
+  }
+
+  .list__month {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1.5px solid var(--ink);
+    font-size: var(--step-2);
+  }
+
+  .list__month span {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: 400;
+    text-transform: none;
+    color: var(--ink-60);
+  }
+
+  .list__grid {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 700px) {
+    .list__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .list__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .list__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2.5rem 1rem;
+    border: 1.5px dashed rgba(177, 2, 61, 0.35);
+    border-radius: var(--r-xl);
+    background: rgba(255, 255, 255, 0.7);
+    text-align: center;
+  }
+
+  .list__private {
+    margin-top: 3rem;
+    text-align: center;
+    color: var(--ink-60);
+  }
+
+  .list__private a {
+    color: var(--burgundy);
+    font-weight: 500;
+  }
+
+  /* Jumping from a day chip to its card: give the card a moment of attention. */
+  .list :global(.card:target) {
+    box-shadow:
+      0 0 0 3px var(--accent),
+      var(--float);
+  }
+</style>

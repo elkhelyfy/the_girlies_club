@@ -1,0 +1,277 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import Badge from "../../components/admin/Badge.astro";
+import ReservationCard from "../../components/admin/ReservationCard.astro";
+import { counts } from "../../lib/content";
+import {
+  PHASE,
+  adminEvents,
+  bookingStats,
+  getEvent,
+  listReservations,
+  type EventRow,
+} from "../../lib/bookings";
+import { handleReservationAction, safeBack, withFlash } from "../../lib/adminActions";
+import { formatDay } from "../../lib/dates";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const flash = handleReservationAction(form) ?? { error: "Unknown action." };
+  return Astro.redirect(withFlash(safeBack(form, "/admin"), flash));
+}
+
+const c = counts();
+const stats = bookingStats();
+const upcoming = adminEvents("upcoming");
+const pending = listReservations({ status: "pending", when: "upcoming" });
+const drafts = adminEvents("draft");
+
+const events = new Map<number, EventRow | undefined>();
+const eventFor = (id: number) => {
+  if (!events.has(id)) events.set(id, getEvent(id));
+  return events.get(id)!;
+};
+
+const fill = stats.capacity30 ? Math.round((stats.seatsBooked30 / stats.capacity30) * 100) : 0;
+const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Casablanca" }).format(new Date()));
+const hello = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+---
+
+<AdminLayout title={`${hello}, girlies 🌸`} intro="Here's what needs you today.">
+  <ul class="kpis">
+    <li>
+      <a class="kpi" href="/admin/reservations?status=pending" style="--tone:#fef3c6">
+        <span class="kpi__value">{stats.pending}</span>
+        <span class="kpi__label">New requests</span>
+        <span class="kpi__note">{stats.pending ? "Waiting for you to confirm" : "All caught up"}</span>
+      </a>
+    </li>
+    <li>
+      <a class="kpi" href="/admin/events" style="--tone:#fbe6ec">
+        <span class="kpi__value">{stats.seatsBooked30}<small>/{stats.capacity30}</small></span>
+        <span class="kpi__label">Seats booked · next 30 days</span>
+        <span class="fill"><i style={`width:${fill}%`}></i></span>
+      </a>
+    </li>
+    <li>
+      <a class="kpi" href="/admin/events" style="--tone:#dbeafe">
+        <span class="kpi__value">{upcoming.length}</span>
+        <span class="kpi__label">Upcoming events</span>
+        <span class="kpi__note">{drafts.length ? `+ ${drafts.length} draft${drafts.length === 1 ? "" : "s"}` : "No drafts"}</span>
+      </a>
+    </li>
+    <li>
+      <a class="kpi" href="/admin/reservations?when=all&status=all" style="--tone:#dcfce7">
+        <span class="kpi__value">{stats.paidThisMonth}<small> DH</small></span>
+        <span class="kpi__label">Paid this month</span>
+        <span class="kpi__note">From reservations marked paid</span>
+      </a>
+    </li>
+  </ul>
+
+  <div class="cols">
+    <section class="panel">
+      <div class="panel__head">
+        <h2>New requests</h2>
+        {pending.length > 0 && <a class="abtn abtn--ghost abtn--sm" href="/admin/reservations?status=pending">See all</a>}
+      </div>
+      {
+        pending.length ? (
+          <ul class="stack">
+            {pending.slice(0, 6).map((r) => (
+              <ReservationCard r={r} event={eventFor(r.event_id)} back="/admin" showEvent />
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">No new requests — you're all caught up 🌸</p>
+        )
+      }
+    </section>
+
+    <section class="panel">
+      <div class="panel__head">
+        <h2>Coming up</h2>
+        <a class="abtn abtn--sm" href="/admin/events/new">+ New event</a>
+      </div>
+      {
+        upcoming.length ? (
+          <ul class="next">
+            {upcoming.slice(0, 8).map((e) => {
+              const taken = e.capacity - e.seats_left;
+              const phase = PHASE[e.phase];
+              return (
+                <li>
+                  <a href={`/admin/events/${e.id}`}>
+                    <span class="next__top">
+                      <b>{e.name}</b>
+                      <Badge label={phase.label} color={phase.color} soft={phase.soft} />
+                    </span>
+                    <span class="next__meta">
+                      {formatDay(e.date)} · {e.start_time} · {taken}/{e.capacity} seats
+                      {e.pending_count > 0 && <em>{e.pending_count} new</em>}
+                    </span>
+                    <span class="fill">
+                      <i style={`width:${Math.min(100, (taken / e.capacity) * 100)}%`} />
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p class="empty">Nothing scheduled. Create the next workshop so it appears on the calendar.</p>
+        )
+      }
+    </section>
+  </div>
+
+  <section class="panel site">
+    <h2>The website</h2>
+    <ul class="site__links">
+      <li><a href="/admin/wall">📸 The Wall <span>{c.wall}</span></a></li>
+      <li><a href="/admin/testimonials">💬 Testimonials <span>{c.testimonials}</span></a></li>
+      <li><a href="/admin/faq">❓ FAQ <span>{c.faqs}</span></a></li>
+      <li><a href="/admin/locations">📍 Locations <span>{c.locations}</span></a></li>
+      <li><a href="/admin/subscribers">💌 Mailing list <span>{c.subscribers}</span></a></li>
+      <li><a href="/admin/settings">✏️ Site text</a></li>
+    </ul>
+  </section>
+</AdminLayout>
+
+<style>
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .kpi {
+    display: grid;
+    gap: 0.3rem;
+    height: 100%;
+    padding: 1.1rem 1.2rem;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-lg);
+    background: var(--tone);
+    transition: transform 0.2s var(--ease-out);
+  }
+
+  .kpi:active {
+    transform: scale(0.98);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .kpi:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  .kpi__value {
+    font-size: 2rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .kpi__value small {
+    font-size: 0.5em;
+    font-weight: 500;
+    color: var(--ink-60);
+  }
+
+  .kpi__label {
+    font-weight: 500;
+  }
+
+  .kpi__note {
+    font-size: 0.78rem;
+    color: var(--ink-60);
+  }
+
+  .kpi .fill {
+    margin-top: 0.3rem;
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .cols {
+    display: grid;
+    gap: 0 1.5rem;
+  }
+
+  @media (min-width: 1100px) {
+    .cols {
+      grid-template-columns: 1.4fr 1fr;
+      align-items: start;
+    }
+  }
+
+  .stack {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .next {
+    display: grid;
+  }
+
+  .next a {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+  }
+
+  .next__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .next__meta {
+    font-size: 0.82rem;
+    color: var(--ink-60);
+  }
+
+  .next__meta em {
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--r-pill);
+    background: #fef3c6;
+    color: #92400e;
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .next a:hover b {
+      color: var(--burgundy);
+    }
+  }
+
+  .site h2 {
+    margin-bottom: 0.9rem;
+  }
+
+  .site__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .site__links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-pill);
+    font-size: 0.9rem;
+  }
+
+  .site__links span {
+    color: var(--ink-40);
+  }
+</style>

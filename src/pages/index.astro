@@ -14,6 +14,12 @@ import Faq from "../components/Faq.astro";
 import Closing from "../components/Closing.astro";
 import Footer from "../components/Footer.astro";
 import Motion from "../components/Motion.astro";
+import { faqs, testimonials, wallPosts } from "../lib/content";
+import { upcomingEvents } from "../lib/bookings";
+
+const upcoming = upcomingEvents();
+const wall = wallPosts();
+const fromPrice = upcoming.length ? Math.min(...upcoming.map((e) => e.price)) : null;
 ---
 
 <Base
@@ -26,14 +32,14 @@ import Motion from "../components/Motion.astro";
     <Hero />
     <Stats />
     <Pillars />
-    <Sessions />
+    <Sessions events={upcoming.slice(0, 4)} total={upcoming.length} />
     <HowItWorks />
-    <CommunityWall />
+    <CommunityWall posts={wall.slice(0, 10)} total={wall.length} />
     <PrivateEvents />
     <Membership />
-    <Testimonials />
-    <Faq />
-    <Closing />
+    <Testimonials items={testimonials()} />
+    <Faq items={faqs()} />
+    <Closing fromPrice={fromPrice} />
   </main>
 
   <Footer />

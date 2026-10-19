@@ -1,8 +1,15 @@
 ---
-import { faqs, site } from "../data/site";
+import type { Faq } from "../lib/content";
 import Button from "./ui/Button.astro";
 import Eyebrow from "./ui/Eyebrow.astro";
 import Icon from "./ui/Icon.astro";
+
+interface Props {
+  items: Faq[];
+}
+
+const { items } = Astro.props;
+const { dmUrl, handle } = Astro.locals.settings;
 ---
 
 <section class="section faq" id="faq">
@@ -20,21 +27,21 @@ import Icon from "./ui/Icon.astro";
           <b>Still wondering?</b>
           We answer every DM, usually the same day.
         </p>
-        <Button href={site.dm} external variant="solid" size="sm" arrow>Message {site.handle}</Button>
+        <Button href={dmUrl} external variant="solid" size="sm" arrow>Message {handle}</Button>
       </div>
     </header>
 
     <div class="faq__list" data-reveal>
       {
-        faqs.map((item, i) => (
+        items.map((item, i) => (
           <details class="faq__item" name="faq" open={i === 0}>
             <summary>
-              <span>{item.q}</span>
+              <span>{item.question}</span>
               <span class="faq__toggle" aria-hidden="true">
                 <Icon name="plus" />
               </span>
             </summary>
-            <p class="faq__answer">{item.a}</p>
+            <p class="faq__answer">{item.answer}</p>
           </details>
         ))
       }

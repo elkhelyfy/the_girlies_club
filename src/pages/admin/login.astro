@@ -1,0 +1,230 @@
+---
+import "@fontsource-variable/josefin-sans";
+import "@fontsource-variable/jost";
+import "../../styles/global.css";
+import { Image } from "astro:assets";
+import logo from "../../assets/logo-wordmark-burgundy.png";
+import Sticker from "../../components/ui/Sticker.astro";
+import {
+  adminEnabled,
+  checkCode,
+  clearFailures,
+  isAuthed,
+  lockedFor,
+  recordFailure,
+  startSession,
+} from "../../lib/auth";
+
+// Only ever bounce back inside /admin — never to another site.
+const nextParam = Astro.url.searchParams.get("next") ?? "/admin";
+const next = nextParam.startsWith("/admin") && !nextParam.startsWith("//") ? nextParam : "/admin";
+
+if (isAuthed(Astro.cookies)) return Astro.redirect(next);
+
+let error = "";
+const ip = Astro.clientAddress ?? "unknown";
+
+if (Astro.request.method === "POST") {
+  const minutes = lockedFor(ip);
+  if (minutes) {
+    error = `Too many tries. Wait ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`;
+  } else {
+    const form = await Astro.request.formData();
+    if (checkCode(String(form.get("code") ?? ""))) {
+      clearFailures(ip);
+      startSession(Astro.cookies, Astro.url.protocol === "https:");
+      return Astro.redirect(next);
+    }
+    recordFailure(ip);
+    error = "That code isn't right.";
+  }
+}
+
+Astro.response.headers.set("Cache-Control", "no-store");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Admin · The Girlies Club</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="login">
+    <main class="card">
+      <span class="card__sticker" aria-hidden="true">
+        <Sticker lines={["Girlies", "only"]} fill="var(--lime)" ink="var(--ink)" rotate={-12} />
+      </span>
+
+      <Image src={logo} alt="The Girlies Club" width={150} densities={[1, 2]} class="card__logo" />
+      <h1>Admin</h1>
+
+      {
+        adminEnabled() ? (
+          <form method="post" class="card__form">
+            <label for="code">Security code</label>
+            <input
+              id="code"
+              name="code"
+              type="password"
+              autocomplete="current-password"
+              required
+              autofocus
+              aria-invalid={error ? "true" : undefined}
+              aria-describedby={error ? "login-error" : undefined}
+            />
+            {error && (
+              <p id="login-error" class="card__error" role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit">Unlock</button>
+          </form>
+        ) : (
+          <p class="card__note">
+            Admin is locked. Add <code>ADMIN_CODE=…</code> (6+ characters) to the <code>.env</code> file and restart
+            the server.
+          </p>
+        )
+      }
+
+      <a class="card__back" href="/">← Back to the site</a>
+    </main>
+  </body>
+</html>
+
+<style>
+  .login {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+    background:
+      radial-gradient(60% 50% at 20% 10%, rgba(232, 84, 127, 0.25), transparent 70%),
+      radial-gradient(50% 40% at 85% 90%, rgba(231, 248, 111, 0.35), transparent 70%),
+      var(--page-wash);
+  }
+
+  .card {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 1rem;
+    width: min(100%, 380px);
+    padding: 2.25rem 1.75rem 1.75rem;
+    border: 1.5px solid var(--ink);
+    border-radius: var(--r-xl);
+    background: var(--paper);
+    box-shadow: var(--float);
+    text-align: center;
+  }
+
+  .card__sticker {
+    position: absolute;
+    top: -2rem;
+    right: -1.5rem;
+    width: 92px;
+  }
+
+  .card :global(.card__logo) {
+    width: 130px;
+    height: auto;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    color: var(--burgundy);
+  }
+
+  .card__form {
+    display: grid;
+    gap: 0.6rem;
+    width: 100%;
+    text-align: left;
+  }
+
+  label {
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.2);
+    border-radius: var(--r-sm);
+    font: inherit;
+    letter-spacing: 0.15em;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.15);
+  }
+
+  input[aria-invalid="true"] {
+    border-color: #dc2626;
+  }
+
+  /* Wrong code: the universal "no" — short, small, and only once. */
+  @media (prefers-reduced-motion: no-preference) {
+    input[aria-invalid="true"] {
+      animation: nope 0.32s var(--ease-out);
+    }
+
+    @keyframes nope {
+      20% {
+        transform: translateX(-6px);
+      }
+      40% {
+        transform: translateX(5px);
+      }
+      60% {
+        transform: translateX(-3px);
+      }
+      80% {
+        transform: translateX(2px);
+      }
+    }
+  }
+
+  .card__error {
+    color: #b91c1c;
+    font-size: 0.85rem;
+  }
+
+  button {
+    margin-top: 0.4rem;
+    padding: 0.85rem;
+    border-radius: var(--r-sm);
+    background: var(--burgundy);
+    color: var(--parchment);
+    font-weight: 500;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+
+  .card__note {
+    color: var(--ink-60);
+    font-size: 0.9rem;
+  }
+
+  code {
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    background: var(--rose-mist);
+    font-size: 0.85em;
+  }
+
+  .card__back {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--ink-60);
+  }
+</style>

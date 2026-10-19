@@ -1,0 +1,198 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { deleteLocation, getLocation, locations, saveLocation, type Location } from "../../lib/bookings";
+import { FormError, back, flag, int, text } from "../../lib/forms";
+
+const PAGE = "/admin/locations";
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const id = int(form, "id") || null;
+
+  if (form.get("intent") === "delete" && id) {
+    deleteLocation(id);
+    return Astro.redirect(back(PAGE, { saved: "Location deleted. Its events now have no location set." }));
+  }
+
+  try {
+    const maps = text(form, "maps_url", { max: 500 });
+    if (maps && !/^https:\/\//i.test(maps)) throw new FormError("The map link should start with https://");
+    const capacity = int(form, "capacity", { min: 0, max: 1000 });
+    saveLocation(id, {
+      name: text(form, "name", { max: 100, required: "Give the location a name." }),
+      area: text(form, "area", { max: 80 }),
+      address: text(form, "address", { max: 300 }),
+      maps_url: maps,
+      capacity: capacity || null,
+      notes: text(form, "notes", { max: 2000 }),
+      public_address: flag(form, "public_address"),
+      active: flag(form, "active"),
+    });
+    return Astro.redirect(back(PAGE, { saved: id ? "Location updated." : "Location added — pick it on any event." }));
+  } catch (error) {
+    if (error instanceof FormError) return Astro.redirect(back(`${PAGE}?edit=${id ?? "new"}`, { error: error.message }));
+    throw error;
+  }
+}
+
+const list = locations({ includeInactive: true });
+const editParam = Astro.url.searchParams.get("edit");
+const editing: Partial<Location> | null =
+  editParam === "new" ? { active: 1, public_address: 0 } : editParam ? (getLocation(Number(editParam)) ?? null) : null;
+---
+
+<AdminLayout
+  title="Locations"
+  intro="Studios, cafés and homes where workshops happen. The area shows on the site; the address goes to confirmed guests."
+>
+  {
+    editing && (
+      <section class="panel" id="form">
+        <h2>{editing.id ? `Edit ${editing.name}` : "New location"}</h2>
+        <form class="form" method="post">
+          {editing.id && <input type="hidden" name="id" value={editing.id} />}
+          <div class="form__grid">
+            <label>
+              Name <small>e.g. “Studio Rose” or “Café Bloom”</small>
+              <input name="name" required maxlength="100" value={editing.name ?? ""} />
+            </label>
+            <label>
+              Area <small>Shown on the site, e.g. “Maarif”</small>
+              <input name="area" maxlength="80" value={editing.area ?? ""} />
+            </label>
+            <label>
+              Fits <small>People — a hint when planning</small>
+              <input type="number" name="capacity" min="0" max="1000" value={editing.capacity ?? ""} />
+            </label>
+          </div>
+          <label>
+            Street address <small>Sent in the WhatsApp confirmation</small>
+            <input name="address" maxlength="300" value={editing.address ?? ""} />
+          </label>
+          <label>
+            Google Maps link <small>Optional — open the place in Maps, Share, Copy link</small>
+            <input name="maps_url" type="url" maxlength="500" value={editing.maps_url ?? ""} placeholder="https://maps.app.goo.gl/…" />
+          </label>
+          <label>
+            Private notes <small>Door code, parking, contact on site… only the team sees this</small>
+            <textarea name="notes" maxlength="2000">{editing.notes ?? ""}</textarea>
+          </label>
+          <div class="actions">
+            <label class="check">
+              <input type="checkbox" name="public_address" checked={editing.public_address === 1} /> Show the street address on the
+              site
+            </label>
+            <label class="check">
+              <input type="checkbox" name="active" checked={editing.active === 1} /> Available for new events
+            </label>
+          </div>
+          <div class="actions">
+            <button class="abtn" type="submit">{editing.id ? "Save changes" : "Add location"}</button>
+            <a class="abtn abtn--ghost" href={PAGE}>Cancel</a>
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  <section class="panel">
+    <div class="panel__head">
+      <h2>{list.length} {list.length === 1 ? "location" : "locations"}</h2>
+      <a class="abtn abtn--sm" href={`${PAGE}?edit=new#form`}>+ Add a location</a>
+    </div>
+    {
+      list.length ? (
+        <ul class="places">
+          {list.map((l) => (
+            <li class:list={["place", { "is-archived": !l.active }]}>
+              <div class="place__main">
+                <p class="place__name">
+                  <b>{l.name}</b>
+                  {l.area && <span class="muted"> · {l.area}</span>}
+                  {!l.active && <span class="pill pill--muted">Archived</span>}
+                  {l.public_address === 1 && <span class="pill">Address public</span>}
+                </p>
+                {l.address && <p class="muted">{l.address}</p>}
+                <p class="place__meta">
+                  {l.capacity ? `Fits ${l.capacity} · ` : ""}
+                  {l.upcoming_count} upcoming · {l.event_count} events in total
+                  {l.maps_url && (
+                    <>
+                      {" · "}
+                      <a href={l.maps_url} target="_blank" rel="noopener">
+                        Map ↗
+                      </a>
+                    </>
+                  )}
+                </p>
+                {l.notes && <p class="place__notes">📝 {l.notes}</p>}
+              </div>
+              <div class="row-actions">
+                <a class="abtn abtn--ghost abtn--sm" href={`${PAGE}?edit=${l.id}#form`}>Edit</a>
+                <form
+                  method="post"
+                  data-confirm={
+                    l.event_count
+                      ? `Delete ${l.name}? ${l.event_count} event(s) use it and will have no location. Archiving keeps them linked.`
+                      : `Delete ${l.name}?`
+                  }
+                >
+                  <input type="hidden" name="id" value={l.id} />
+                  <button class="abtn abtn--danger abtn--sm" name="intent" value="delete" data-hold title="Press and hold to delete">Delete</button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">No locations yet. Add the studio or café where workshops happen.</p>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<style>
+  .places {
+    display: grid;
+  }
+
+  .place {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 0;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+  }
+
+  .place.is-archived {
+    opacity: 0.6;
+  }
+
+  .place__main {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .place__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .place__meta {
+    font-size: 0.82rem;
+    color: var(--ink-60);
+  }
+
+  .place__meta a {
+    color: var(--burgundy);
+  }
+
+  .place__notes {
+    font-size: 0.85rem;
+    white-space: pre-line;
+  }
+</style>

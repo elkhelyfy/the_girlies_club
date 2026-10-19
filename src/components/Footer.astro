@@ -1,14 +1,28 @@
 ---
 import { Image } from "astro:assets";
 import logo from "../assets/logo-wordmark-burgundy.png";
-import { footerLinks, site, socials } from "../data/site";
+import { footerLinks, site } from "../data/site";
 import Icon from "./ui/Icon.astro";
+
+const s = Astro.locals.settings;
+const socials = [
+  { name: "Instagram", href: s.instagramUrl, color: "var(--coral)", icon: "instagram" },
+  { name: "Message us on Instagram", href: s.dmUrl, color: "var(--lime)", icon: "message" },
+];
+
+// Result of a no-JS sign-up, which comes back here as ?list=…
+const LIST_MESSAGES: Record<string, string> = {
+  added: "You're on the list. See you at the table 🌸",
+  exists: "You're already on the list — see you soon 🌸",
+  invalid: "That email doesn't look right. Try again?",
+};
+const listStatus = LIST_MESSAGES[Astro.url.searchParams.get("list") ?? ""] ?? "";
 ---
 
 <footer class="footer">
   <div class="shell footer__top">
     <div class="footer__brand">
-      <a class="wordmark" href="#top" aria-label={`${site.name} — home`}>
+      <a class="wordmark" href="/" aria-label={`${site.name} — home`}>
         <Image class="wordmark__mark" src={logo} alt={site.name} densities={[1, 2]} width={140} />
       </a>
 
@@ -16,9 +30,9 @@ import Icon from "./ui/Icon.astro";
         {site.tagline} Made in {site.city}, 100% femmes.
       </p>
 
-      <a class="footer__ig" href={site.instagram} target="_blank" rel="noopener">
+      <a class="footer__ig" href={s.instagramUrl} target="_blank" rel="noopener">
         <Icon name="instagram" />
-        {site.handle}
+        {s.handle}
       </a>
 
       <ul class="socials">
@@ -47,12 +61,7 @@ import Icon from "./ui/Icon.astro";
           <ul>
             {column.links.map((link) => (
               <li>
-                <a
-                  href={link.href}
-                  {...("external" in link && link.external ? { target: "_blank", rel: "noopener" } : {})}
-                >
-                  {link.label}
-                </a>
+                <a href={link.href}>{link.label}</a>
               </li>
             ))}
           </ul>
@@ -60,28 +69,30 @@ import Icon from "./ui/Icon.astro";
       ))
     }
 
-    <div class="signup">
+    <div class="signup" id="list">
       <h2 class="signup__title">
         <span aria-hidden="true">💌</span>
         The list
       </h2>
       <p class="signup__body">New dates drop here first. About one email a month.</p>
 
-      <form class="signup__form" data-signup>
+      <form class="signup__form" method="post" action="/api/subscribe" data-signup>
         <label class="sr-only" for="email">Email address</label>
-        <input id="email" name="email" type="email" required placeholder="you@email.com" />
+        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@email.com" />
+        <!-- Honeypot: hidden from people, irresistible to bots. -->
+        <input class="sr-only" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
         <button type="submit" aria-label="Subscribe">
           <Icon name="arrow" />
         </button>
       </form>
 
-      <p class="signup__status" data-status role="status"></p>
+      <p class="signup__status" data-status role="status">{listStatus}</p>
     </div>
   </div>
 
   <div class="shell footer__base">
     <p>© {site.year} {site.name} · workshops &amp; pause café · Crafted with 💗 in {site.city}.</p>
-    <a class="totop" href="#top">
+    <a class="totop" href="#">
       Back to top
       <span aria-hidden="true"><Icon name="arrowUp" /></span>
     </a>
@@ -89,14 +100,36 @@ import Icon from "./ui/Icon.astro";
 </footer>
 
 <script>
-  // No backend yet — acknowledge locally so the control never looks broken.
-  const form = document.querySelector("[data-signup]");
+  // Sign up without leaving the page. Without JS the form posts normally and
+  // the server redirects back with ?list=… instead.
+  const form = document.querySelector<HTMLFormElement>("[data-signup]");
   const status = document.querySelector("[data-status]");
 
-  form?.addEventListener("submit", (event) => {
+  const MESSAGES: Record<string, string> = {
+    added: "You're on the list. See you at the table 🌸",
+    exists: "You're already on the list — see you soon 🌸",
+    invalid: "That email doesn't look right. Try again?",
+  };
+
+  form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (status) status.textContent = "You're on the list. See you at the table 🌸";
-    (form as HTMLFormElement).reset();
+    const button = form.querySelector("button");
+    button?.setAttribute("disabled", "");
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { Accept: "application/json" },
+      });
+      const { status: result } = await response.json();
+      if (status) status.textContent = MESSAGES[result] ?? MESSAGES.invalid;
+      if (result !== "invalid") form.reset();
+    } catch {
+      if (status) status.textContent = "Couldn't reach us just now — please try again.";
+    } finally {
+      button?.removeAttribute("disabled");
+    }
   });
 </script>
 

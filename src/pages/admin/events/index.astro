@@ -1,0 +1,245 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import Badge from "../../../components/admin/Badge.astro";
+import Pic from "../../../components/ui/Pic.astro";
+import { tone } from "../../../lib/content";
+import { EVENT_VIEWS, PHASE, adminEvents, eventViewCounts, type EventView } from "../../../lib/bookings";
+
+const param = Astro.url.searchParams.get("view") ?? "upcoming";
+const view: EventView = param in EVENT_VIEWS ? (param as EventView) : "upcoming";
+const events = adminEvents(view);
+const counts = eventViewCounts();
+
+const day = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", ...o }).format(d);
+  return { dow: f({ weekday: "short" }), num: f({ day: "numeric" }), mon: f({ month: "short" }), year: f({ year: "numeric" }) };
+};
+const thisYear = new Date().getUTCFullYear().toString();
+---
+
+<AdminLayout title="Events" intro="Every workshop. Open one to see who's coming, confirm guests and manage seats.">
+  <div class="topbar">
+    <nav class="tabs" aria-label="Filter events">
+      {
+        (Object.keys(EVENT_VIEWS) as EventView[]).map((key) => (
+          <a href={`/admin/events?view=${key}`} aria-current={key === view ? "page" : undefined}>
+            {EVENT_VIEWS[key]} <span>{counts[key]}</span>
+          </a>
+        ))
+      }
+    </nav>
+    <a class="abtn" href="/admin/events/new">+ New event</a>
+  </div>
+
+  {
+    events.length ? (
+      <ul class="list">
+        {events.map((e) => {
+          const d = day(e.date);
+          const taken = e.booked + e.held_seats;
+          const pct = Math.min(100, Math.round((taken / e.capacity) * 100));
+          const phase = PHASE[e.phase];
+          return (
+            <li>
+              <a class="row" href={`/admin/events/${e.id}`} style={`--accent:${tone(e.tone).accent}`}>
+                <span class="row__date">
+                  <small>{d.dow}</small>
+                  <b>{d.num}</b>
+                  <small>
+                    {d.mon}
+                    {d.year !== thisYear && ` ${d.year}`}
+                  </small>
+                </span>
+
+                <span class="row__thumb" style={`background:${tone(e.tone).soft}`}>
+                  <Pic src={e.image} alt="" widths={[120]} sizes="60px" />
+                </span>
+
+                <span class="row__main">
+                  <span class="row__title">
+                    <b>{e.name}</b>
+                    <Badge label={phase.label} color={phase.color} soft={phase.soft} />
+                  </span>
+                  <span class="row__meta">
+                    {e.start_time}–{e.end_time} · {e.craft} · {e.price} DH
+                    {e.location_name ? ` · ${e.location_name}` : " · no location yet"}
+                  </span>
+                </span>
+
+                <span class="row__seats">
+                  <span class="row__nums">
+                    <b>{taken}</b>/{e.capacity} seats
+                    {e.pending_count > 0 && <em class="row__new">{e.pending_count} new</em>}
+                    {e.waitlist_count > 0 && <em class="row__wait">{e.waitlist_count} waiting</em>}
+                  </span>
+                  <span class="fill" aria-hidden="true">
+                    <i style={`width:${pct}%; background:var(--accent)`} />
+                  </span>
+                </span>
+
+                <span class="row__go" aria-hidden="true">→</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    ) : (
+      <p class="empty">
+        {view === "upcoming"
+          ? "Nothing coming up. Create the next workshop — or duplicate a past one."
+          : `No ${EVENT_VIEWS[view].toLowerCase()} events.`}
+      </p>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .list {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.8rem 1rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.12);
+    border-radius: var(--r-lg);
+    background: var(--paper);
+    transition:
+      border-color 0.15s ease,
+      transform var(--press) var(--ease-out);
+  }
+
+  .row:active {
+    transform: scale(0.995);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .row:hover {
+      border-color: var(--burgundy);
+    }
+  }
+
+  .row__date {
+    display: grid;
+    justify-items: center;
+    width: 3.4rem;
+    padding: 0.35rem 0;
+    border-radius: var(--r-sm);
+    background: var(--rose-mist);
+    line-height: 1.1;
+  }
+
+  .row__date b {
+    font-size: 1.35rem;
+    color: var(--burgundy);
+  }
+
+  .row__date small {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+
+  .row__thumb {
+    width: 52px;
+    height: 52px;
+    overflow: hidden;
+    border-radius: 12px;
+  }
+
+  .row__thumb :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .row__main {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .row__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .row__meta {
+    font-size: 0.82rem;
+    color: var(--ink-60);
+  }
+
+  .row__seats {
+    display: grid;
+    gap: 0.35rem;
+    grid-column: 1 / -1;
+  }
+
+  .row__nums {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--ink-60);
+  }
+
+  .row__nums b {
+    color: var(--ink);
+  }
+
+  .row__new,
+  .row__wait {
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--r-pill);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  .row__new {
+    background: #fef3c6;
+    color: #92400e;
+  }
+
+  .row__wait {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .row__go {
+    display: none;
+    color: var(--burgundy);
+    font-size: 1.1rem;
+  }
+
+  @media (min-width: 820px) {
+    .row {
+      grid-template-columns: auto auto 1fr 13rem auto;
+    }
+
+    .row__seats {
+      grid-column: auto;
+    }
+
+    .row__go {
+      display: block;
+    }
+  }
+</style>

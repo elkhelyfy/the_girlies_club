@@ -1,0 +1,12 @@
+---
+/** A coloured status pill — styles live in AdminLayout (.badge). */
+interface Props {
+  label: string;
+  color: string;
+  soft: string;
+}
+
+const { label, color, soft } = Astro.props;
+---
+
+<span class="badge" style={`--soft:${soft}; --ink-c:${color}`}>{label}</span>

@@ -1,0 +1,372 @@
+---
+/**
+ * One guest's reservation, with everything the team does to it: confirm,
+ * message on WhatsApp, mark paid, check in, edit, move or delete.
+ */
+import { instagramUrl, todayISO } from "../../lib/content";
+import {
+  PAYMENT,
+  PAYMENT_KEYS,
+  RESERVATION_STATUS,
+  RESERVATION_STATUS_KEYS,
+  SOURCES,
+  SOURCE_KEYS,
+  guestMessage,
+  whatsappLink,
+  type EventRow,
+  type Reservation,
+  type ReservationStatus,
+} from "../../lib/bookings";
+import { formatDay } from "../../lib/dates";
+import Badge from "./Badge.astro";
+
+interface Props {
+  r: Reservation;
+  event: EventRow;
+  /** Where forms return to after saving. */
+  back: string;
+  /** Show which event this is for (on the all-reservations list). */
+  showEvent?: boolean;
+  /** Events she can be moved to. */
+  moveTargets?: { id: number; name: string; date: string }[];
+}
+
+const { r, event, back, showEvent = false, moveTargets = [] } = Astro.props;
+const settings = Astro.locals.settings;
+
+const status = RESERVATION_STATUS[r.status];
+const message = guestMessage(r, event, settings);
+const wa = r.phone ? whatsappLink(r.phone, message) : null;
+const today = todayISO();
+
+// The one obvious next step for this guest, as a single tap.
+const next: { to: ReservationStatus; label: string } | null =
+  event.phase === "cancelled"
+    ? null
+    : r.status === "pending"
+      ? { to: "confirmed", label: "✓ Confirm" }
+      : r.status === "waitlist"
+        ? { to: "confirmed", label: "Give her a seat" }
+        : r.status === "confirmed" && event.date <= today
+          ? { to: "attended", label: "She came 🌸" }
+          : null;
+
+// Taking her off the wait list (or confirming) when the seats aren't there:
+// allowed — the team may squeeze someone in — but never by accident.
+const overbook =
+  next?.to === "confirmed" && r.status === "waitlist" && r.seats > event.seats_left
+    ? `Only ${event.seats_left} seat${event.seats_left === 1 ? " is" : "s are"} free but ${r.name} asked for ${r.seats}. Confirm anyway? The event will be over capacity.`
+    : undefined;
+
+const created = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Casablanca",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+}).format(new Date(`${r.created_at.replace(" ", "T")}Z`));
+---
+
+<li class="res" id={`res-${r.id}`} style={`--status:${status.color}`}>
+  <div class="res__main">
+    <div class="res__who">
+      <p class="res__name">
+        <b>{r.name}</b>
+        <span class="res__seats">{r.seats} {r.seats === 1 ? "seat" : "seats"}</span>
+        <Badge label={status.label} color={status.color} soft={status.soft} />
+        {r.payment !== "unpaid" && <Badge label={PAYMENT[r.payment].label} color={PAYMENT[r.payment].color} soft={PAYMENT[r.payment].soft} />}
+      </p>
+      <p class="res__meta">
+        <code>{r.code}</code> · {SOURCES[r.source]} · {created}
+        {
+          showEvent && (
+            <>
+              {" · "}
+              <a href={`/admin/events/${event.id}#res-${r.id}`}>
+                {event.name}, {formatDay(event.date)}
+              </a>
+            </>
+          )
+        }
+      </p>
+    </div>
+
+    <div class="res__contact">
+      {
+        wa && (
+          <a class="chip chip--wa" href={wa} target="_blank" rel="noopener" title="Opens WhatsApp with a ready message">
+            WhatsApp
+          </a>
+        )
+      }
+      {r.phone && <a class="chip" href={`tel:${r.phone.replace(/[^\d+]/g, "")}`}>{r.phone}</a>}
+      {
+        r.instagram && (
+          <a class="chip" href={instagramUrl(r.instagram)} target="_blank" rel="noopener">
+            @{r.instagram}
+          </a>
+        )
+      }
+      {r.email && <a class="chip" href={`mailto:${r.email}`}>{r.email}</a>}
+    </div>
+
+    {r.message && <p class="res__msg">“{r.message}”</p>}
+    {r.admin_notes && <p class="res__notes">📝 {r.admin_notes}</p>}
+  </div>
+
+  <div class="res__controls">
+    {
+      next && (
+        <form method="post">
+          <input type="hidden" name="intent" value="res-status" />
+          <input type="hidden" name="id" value={r.id} />
+          <input type="hidden" name="status" value={next.to} />
+          <input type="hidden" name="back" value={back} />
+          <button class="abtn abtn--sm" data-confirm={overbook}>
+            {next.label}
+            {overbook && <small class="res__warn"> · only {event.seats_left} free</small>}
+          </button>
+        </form>
+      )
+    }
+
+    <form method="post" class="res__select">
+      <input type="hidden" name="intent" value="res-status" />
+      <input type="hidden" name="id" value={r.id} />
+      <input type="hidden" name="back" value={back} />
+      <label class="sr-only" for={`status-${r.id}`}>Status</label>
+      <select id={`status-${r.id}`} name="status" data-autosubmit>
+        {RESERVATION_STATUS_KEYS.map((k) => <option value={k} selected={k === r.status}>{RESERVATION_STATUS[k].label}</option>)}
+      </select>
+      <button class="abtn abtn--ghost abtn--sm nojs-only">Save</button>
+    </form>
+
+    <form method="post" class="res__select">
+      <input type="hidden" name="intent" value="res-payment" />
+      <input type="hidden" name="id" value={r.id} />
+      <input type="hidden" name="back" value={back} />
+      <label class="sr-only" for={`pay-${r.id}`}>Payment</label>
+      <select id={`pay-${r.id}`} name="payment" data-autosubmit>
+        {PAYMENT_KEYS.map((k) => <option value={k} selected={k === r.payment}>{PAYMENT[k].label}</option>)}
+      </select>
+      <button class="abtn abtn--ghost abtn--sm nojs-only">Save</button>
+    </form>
+  </div>
+
+  <details class="res__edit">
+    <summary>Edit, move or delete</summary>
+    <!-- Intent rides on the buttons: Enter submits the first one (Save). -->
+    <form method="post" class="form">
+      <input type="hidden" name="id" value={r.id} />
+      <input type="hidden" name="back" value={back} />
+      <div class="form__grid">
+        <label>Name <input name="name" required maxlength="80" value={r.name} /></label>
+        <label>Phone / WhatsApp <input name="phone" type="tel" maxlength="30" value={r.phone} /></label>
+        <label>Instagram <input name="instagram" maxlength="60" value={r.instagram} /></label>
+        <label>Email <input name="email" type="email" maxlength="254" value={r.email} /></label>
+      </div>
+      <div class="form__grid">
+        <label>Seats <input name="seats" type="number" min="1" max="50" value={r.seats} /></label>
+        <label>
+          Status
+          <select name="status">
+            {RESERVATION_STATUS_KEYS.map((k) => <option value={k} selected={k === r.status}>{RESERVATION_STATUS[k].label}</option>)}
+          </select>
+        </label>
+        <label>
+          Payment
+          <select name="payment">
+            {PAYMENT_KEYS.map((k) => <option value={k} selected={k === r.payment}>{PAYMENT[k].label}</option>)}
+          </select>
+        </label>
+        <label>
+          Booked via
+          <select name="source">
+            {SOURCE_KEYS.map((k) => <option value={k} selected={k === r.source}>{SOURCES[k]}</option>)}
+          </select>
+        </label>
+      </div>
+      <label>
+        Event <small>Change it to move her to another date</small>
+        <select name="event_id">
+          <option value={event.id} selected>{event.name} — {formatDay(event.date)} (current)</option>
+          {
+            moveTargets
+              .filter((t) => t.id !== event.id)
+              .map((t) => (
+                <option value={t.id}>
+                  {t.name} — {formatDay(t.date)}
+                </option>
+              ))
+          }
+        </select>
+      </label>
+      <label>
+        Private notes <small>Only the team sees these</small>
+        <textarea name="admin_notes" maxlength="2000">{r.admin_notes}</textarea>
+      </label>
+      <div class="actions">
+        <button class="abtn abtn--sm" name="intent" value="res-save">Save</button>
+        <button
+          class="abtn abtn--danger abtn--sm"
+          name="intent"
+          value="res-delete"
+          formnovalidate
+          data-hold
+          title="Press and hold to delete"
+          data-confirm={`Delete ${r.name}'s reservation? Cancelling keeps a record — delete only removes it.`}
+        >
+          Delete
+        </button>
+      </div>
+    </form>
+  </details>
+</li>
+
+<style>
+  .res {
+    display: grid;
+    gap: 0.75rem 1.25rem;
+    padding: 1rem 1rem 1rem 1.15rem;
+    border: 1px solid rgba(10, 10, 10, 0.1);
+    border-left: 4px solid var(--status);
+    border-radius: var(--r-md);
+    background: var(--paper);
+  }
+
+  .res:target {
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.25);
+  }
+
+  .res__main {
+    display: grid;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .res__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+  }
+
+  .res__name b {
+    font-size: 1.02rem;
+  }
+
+  .res__seats {
+    font-size: 0.82rem;
+    color: var(--ink-60);
+  }
+
+  .res__meta {
+    font-size: 0.78rem;
+    color: var(--ink-60);
+  }
+
+  .res__meta code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.95em;
+    color: var(--burgundy);
+  }
+
+  .res__meta a {
+    color: var(--burgundy);
+    font-weight: 500;
+  }
+
+  .res__contact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .chip {
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--r-pill);
+    background: var(--rose-mist);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+    transition: transform var(--press) var(--ease-out);
+  }
+
+  .chip:active {
+    transform: scale(0.96);
+  }
+
+  .chip--wa {
+    background: #25d366;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .res__msg {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--r-sm);
+    background: #fffbeb;
+    font-size: 0.86rem;
+    font-style: italic;
+  }
+
+  .res__notes {
+    font-size: 0.84rem;
+    color: var(--ink-70);
+  }
+
+  .res__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .res__controls form {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .res__select select {
+    width: auto;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .res__edit {
+    grid-column: 1 / -1;
+  }
+
+  .res__edit summary {
+    width: fit-content;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--burgundy);
+    cursor: pointer;
+  }
+
+  .res__edit[open] summary {
+    margin-bottom: 0.75rem;
+  }
+
+  @media (min-width: 900px) {
+    .res {
+      grid-template-columns: 1fr auto;
+      align-items: start;
+    }
+
+    .res__controls {
+      flex-direction: column;
+      align-items: stretch;
+      min-width: 11rem;
+    }
+
+    .res__controls form,
+    .res__controls .abtn {
+      width: 100%;
+    }
+
+    .res__select select {
+      width: 100%;
+    }
+  }
+</style>

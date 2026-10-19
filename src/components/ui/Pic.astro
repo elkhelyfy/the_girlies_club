@@ -1,0 +1,31 @@
+---
+/**
+ * Renders an image reference from the database — a bundled asset goes
+ * through astro:assets for resizing; an upload is served from /media/<id>.
+ */
+import { Image } from "astro:assets";
+import { resolveImage } from "../../lib/images";
+
+interface Props {
+  src: string | null | undefined;
+  alt: string;
+  widths?: number[];
+  sizes?: string;
+  loading?: "lazy" | "eager";
+  class?: string;
+}
+
+const { src, alt, widths = [320, 560, 800], sizes = "100vw", loading = "lazy", class: className } = Astro.props;
+const resolved = resolveImage(src);
+---
+
+{
+  resolved?.kind === "asset" && (
+    <Image src={resolved.image} alt={alt} widths={widths} sizes={sizes} loading={loading} class={className} />
+  )
+}
+{
+  resolved?.kind === "media" && (
+    <img src={resolved.src} alt={alt} loading={loading} decoding="async" class={className} />
+  )
+}

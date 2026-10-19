@@ -1,0 +1,655 @@
+---
+import Base from "../../layouts/Base.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+import Button from "../../components/ui/Button.astro";
+import Flower from "../../components/ui/Flower.astro";
+import Pic from "../../components/ui/Pic.astro";
+import Sticker from "../../components/ui/Sticker.astro";
+import { cleanHandle, tone } from "../../lib/content";
+import {
+  BookingError,
+  MAX_SEATS_ONLINE,
+  createReservation,
+  findReservation,
+  publicEvent,
+  type ReservationStatus,
+} from "../../lib/bookings";
+import { longDay } from "../../lib/dates";
+import { allow } from "../../lib/limit";
+import { price } from "../../data/site";
+
+const event = publicEvent(Number(Astro.params.id));
+if (!event) return Astro.rewrite("/404");
+
+const s = Astro.locals.settings;
+const t = tone(event.tone);
+const bookable = event.phase === "open" || event.phase === "full";
+const maxSeats = event.phase === "full" ? MAX_SEATS_ONLINE : Math.max(1, Math.min(MAX_SEATS_ONLINE, event.seats_left));
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+let error = "";
+let values = { name: "", phone: "", instagram: "", email: "", seats: "1", message: "" };
+
+if (Astro.request.method === "POST" && bookable) {
+  const form = await Astro.request.formData();
+  values = {
+    name: String(form.get("name") ?? "").trim().slice(0, 80),
+    phone: String(form.get("phone") ?? "").trim().slice(0, 30),
+    instagram: String(form.get("instagram") ?? "").trim().slice(0, 60),
+    email: String(form.get("email") ?? "").trim().toLowerCase().slice(0, 254),
+    seats: String(form.get("seats") ?? "1"),
+    message: String(form.get("message") ?? "").trim().slice(0, 500),
+  };
+  const seats = Math.min(MAX_SEATS_ONLINE, Math.max(1, Number.parseInt(values.seats, 10) || 1));
+  const digits = values.phone.replace(/\D/g, "");
+
+  if (String(form.get("website") ?? "") !== "") {
+    // Honeypot filled: a bot. Look successful, store nothing.
+    return Astro.redirect(`/reserve/${event.id}?ok=1`, 303);
+  } else if (!allow(`reserve:${Astro.clientAddress}`, 6, 10 * 60_000)) {
+    error = "That's a lot of requests in a row — please wait a few minutes, or DM us on Instagram.";
+  } else if (values.name.length < 2) {
+    error = "Please tell us your name.";
+  } else if (digits.length < 9 || digits.length > 15) {
+    error = "Please add a phone number we can reach on WhatsApp, e.g. 06 12 34 56 78.";
+  } else if (values.email && !EMAIL.test(values.email)) {
+    error = "That email doesn't look right — or leave it empty.";
+  } else {
+    try {
+      const { code } = createReservation(
+        event.id,
+        {
+          name: values.name,
+          phone: values.phone,
+          instagram: cleanHandle(values.instagram),
+          email: values.email,
+          seats,
+          status: "pending",
+          payment: "unpaid",
+          source: "website",
+          message: values.message,
+          admin_notes: "",
+        },
+        { online: true },
+      );
+      return Astro.redirect(`/reserve/${event.id}?ok=${code}`, 303);
+    } catch (e) {
+      if (!(e instanceof BookingError)) throw e;
+      error = e.message;
+    }
+  }
+}
+
+// After a successful request: look the code up so we can say "pending" vs "wait list".
+const okParam = Astro.url.searchParams.get("ok");
+const done = okParam ? (findReservation(event.id, okParam) ?? { status: "pending" as ReservationStatus, code: "", seats: 1 }) : null;
+
+if (error) Astro.response.status = 400;
+const statusLine =
+  event.phase === "full"
+    ? "This session is full — leave your details and we'll message you if a seat opens."
+    : event.phase === "open"
+      ? `${event.seats_left} of ${event.capacity} seats left`
+      : event.phase === "cancelled"
+        ? "This session has been cancelled."
+        : "Bookings for this session are closed.";
+---
+
+<Base
+  title={`Reserve · ${event.name} — The Girlies Club`}
+  description={`Reserve your seat at ${event.name}, ${longDay(event.date)} in Casablanca. ${event.blurb}`}
+>
+  <Header />
+
+  <main id="main" class="reserve">
+    <div class="shell reserve__grid">
+      <a class="reserve__back" href={`/calendar#event-${event.id}`}>← Back to the calendar</a>
+
+      <!-- The session -->
+      <article class="event" style={`--accent:${t.accent}; --soft:${t.soft}`}>
+        <div class="event__media">
+          {
+            event.image ? (
+              <Pic src={event.image} alt={event.alt} widths={[420, 720]} sizes="(min-width: 960px) 40vw, 92vw" loading="eager" />
+            ) : (
+              <div class="event__art" aria-hidden="true">
+                <Flower name="tulip" size={84} rotate={-8} float={0} />
+              </div>
+            )
+          }
+          <span class="event__craft" lang="fr">{event.craft}</span>
+        </div>
+
+        <div class="event__body">
+          <p class="event__when">{longDay(event.date)} · {event.start_time} – {event.end_time}</p>
+          <h1 class="event__name">{event.name}</h1>
+          {event.blurb && <p class="event__blurb">{event.blurb}</p>}
+
+          <dl class="event__facts">
+            <div>
+              <dt>Price</dt>
+              <dd>{price(event.price)} <small>/ seat</small></dd>
+            </div>
+            <div>
+              <dt>Level</dt>
+              <dd>{event.level}</dd>
+            </div>
+            {
+              event.location && (
+                <div>
+                  <dt>Where</dt>
+                  <dd>{event.location}</dd>
+                </div>
+              )
+            }
+          </dl>
+
+          <p class:list={["event__seats", { "is-low": event.phase !== "open" || event.seats_left <= 4 }]}>{statusLine}</p>
+        </div>
+      </article>
+
+      <!-- The form / the result -->
+      <section class="panel" aria-labelledby="form-title">
+        <span class="panel__sticker" aria-hidden="true">
+          <Sticker lines={["Save", "my", "seat"]} fill="var(--lime)" ink="var(--ink)" rotate={10} />
+        </span>
+
+        {
+          done ? (
+            <div class="done" role="status">
+              <span class="done__icon" aria-hidden="true">{done.status === "waitlist" ? "💌" : "🌸"}</span>
+              <h2 id="form-title" class="display display--md">
+                {done.status === "waitlist" ? "You're on the wait list" : "Request sent!"}
+              </h2>
+              <p>
+                {done.status === "waitlist"
+                  ? "There weren't enough seats left, so we've saved your place in line. If a seat opens up, we'll message you first."
+                  : "Your seat is held while we confirm. We'll message you on WhatsApp or Instagram with the address and the details."}
+              </p>
+              {done.code && (
+                <p class="done__code">
+                  Your reference <b>{done.code}</b>
+                </p>
+              )}
+              <div class="done__actions">
+                {done.status !== "waitlist" && (
+                  <Button href={`/calendar/${event.id}.ics`} variant="solid" arrow>
+                    Add to my calendar
+                  </Button>
+                )}
+                <Button href="/calendar" variant="outline">
+                  See other dates
+                </Button>
+              </div>
+            </div>
+          ) : bookable ? (
+            <form method="post" class="form" novalidate={false}>
+              <h2 id="form-title" class="display display--md">
+                {event.phase === "full" ? (
+                  <>
+                    Join the <span class="tint-heat">wait list</span>
+                  </>
+                ) : (
+                  <>
+                    Reserve your <span class="tint-heat">seat</span>
+                  </>
+                )}
+              </h2>
+
+              {error && (
+                <p class="form__error" role="alert">
+                  {error}
+                </p>
+              )}
+
+              <label>
+                Your name
+                <input name="name" required minlength="2" maxlength="80" autocomplete="name" value={values.name} />
+              </label>
+
+              <label>
+                WhatsApp number <small>We confirm here</small>
+                <input
+                  name="phone"
+                  type="tel"
+                  inputmode="tel"
+                  required
+                  autocomplete="tel"
+                  placeholder="06 12 34 56 78"
+                  value={values.phone}
+                />
+              </label>
+
+              <div class="form__row">
+                <label>
+                  Instagram <small>Optional</small>
+                  <span class="ig">
+                    <span aria-hidden="true">@</span>
+                    <input name="instagram" maxlength="60" autocomplete="off" autocapitalize="none" value={values.instagram} />
+                  </span>
+                </label>
+                <label>
+                  Seats
+                  <select name="seats">
+                    {Array.from({ length: maxSeats }, (_, i) => i + 1).map((n) => (
+                      <option value={n} selected={String(n) === values.seats}>
+                        {n} {n === 1 ? "seat" : "seats"} · {price(n * event.price)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                Email <small>Optional</small>
+                <input name="email" type="email" autocomplete="email" maxlength="254" value={values.email} />
+              </label>
+
+              <label>
+                Anything we should know? <small>Optional — coming with a friend, a birthday…</small>
+                <textarea name="message" maxlength="500" rows="3">{values.message}</textarea>
+              </label>
+
+              <input class="sr-only" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+              <button class="form__submit" type="submit">
+                {event.phase === "full" ? "Join the wait list" : "Send my request"}
+              </button>
+
+              <p class="form__note">{s.booking_note}</p>
+              <p class="form__alt">
+                Prefer to message? <a href={s.dmUrl} target="_blank" rel="noopener">DM {s.handle}</a>
+              </p>
+            </form>
+          ) : (
+            <div class="done">
+              <span class="done__icon" aria-hidden="true">🗓️</span>
+              <h2 id="form-title" class="display display--md">
+                {event.phase === "cancelled" ? "This one's cancelled" : "Bookings are closed"}
+              </h2>
+              <p>
+                {event.phase === "cancelled"
+                  ? "Sorry! If you had a seat we'll be in touch. Have a look at the other dates."
+                  : "This session isn't taking new reservations. Have a look at the other dates."}
+              </p>
+              <div class="done__actions">
+                <Button href="/calendar" variant="solid" arrow>
+                  See other dates
+                </Button>
+              </div>
+            </div>
+          )
+        }
+      </section>
+    </div>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .reserve {
+    padding-block: clamp(2rem, 5vw, 3.5rem) var(--section-y);
+    background: var(--page-wash);
+  }
+
+  .reserve__grid {
+    display: grid;
+    gap: clamp(1.5rem, 4vw, 2.5rem);
+    align-items: start;
+  }
+
+  .reserve__back {
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--burgundy);
+  }
+
+  /* --- the session -------------------------------------------------------- */
+
+  .event {
+    overflow: hidden;
+    border: var(--edge);
+    border-radius: var(--r-xl);
+    background: var(--paper);
+    box-shadow: var(--float);
+  }
+
+  .event__media {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    border-bottom: var(--edge);
+    background: var(--soft);
+  }
+
+  .event__media > :global(img) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .event__art {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent) 25%, transparent) 1px, transparent 0) 0 0 / 14px 14px,
+      var(--soft);
+  }
+
+  .event__craft {
+    position: absolute;
+    right: 0.9rem;
+    bottom: 0.9rem;
+    padding: 0.32rem 0.75rem;
+    border-radius: var(--r-pill);
+    background: rgba(10, 10, 10, 0.82);
+    color: var(--paper);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .event__body {
+    display: grid;
+    gap: 0.75rem;
+    padding: clamp(1.25rem, 3vw, 1.75rem);
+  }
+
+  .event__when {
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .event__name {
+    font-size: var(--step-3);
+  }
+
+  .event__blurb {
+    color: var(--ink-60);
+  }
+
+  .event__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0;
+  }
+
+  .event__facts div {
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--r-sm);
+    background: var(--rose-mist);
+  }
+
+  .event__facts dt {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+  }
+
+  .event__facts dd {
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .event__facts small {
+    font-weight: 400;
+    color: var(--ink-40);
+  }
+
+  .event__seats {
+    font-size: var(--step--1);
+    color: var(--ink-60);
+  }
+
+  .event__seats.is-low {
+    color: var(--hot-pink);
+    font-weight: 500;
+  }
+
+  /* --- the form ----------------------------------------------------------- */
+
+  .panel {
+    position: relative;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+    border: var(--edge);
+    border-radius: var(--r-xl);
+    background: var(--paper);
+    box-shadow: var(--float);
+  }
+
+  .panel__sticker {
+    position: absolute;
+    top: -2.25rem;
+    right: -1rem;
+    width: clamp(78px, 9vw, 104px);
+  }
+
+  /* On phones the card meets the screen edge — keep the sticker inside it. */
+  @media (max-width: 640px) {
+    .panel__sticker {
+      right: -0.25rem;
+    }
+  }
+
+  .form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .form h2,
+  .done h2 {
+    margin-bottom: 0.25rem;
+  }
+
+  /* Leave the top-right corner to the sticker. */
+  .form h2 {
+    padding-right: clamp(3.5rem, 9vw, 5.5rem);
+  }
+
+  .form__error {
+    padding: 0.75rem 1rem;
+    border-radius: var(--r-sm);
+    background: #fee2e2;
+    color: #991b1b;
+    font-weight: 500;
+  }
+
+  .form__row {
+    display: grid;
+    gap: 1rem;
+  }
+
+  @media (min-width: 520px) {
+    .form__row {
+      grid-template-columns: 1.3fr 1fr;
+      align-items: end;
+    }
+  }
+
+  label {
+    display: grid;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  label small {
+    font-weight: 400;
+    color: var(--ink-40);
+  }
+
+  /* 16px+ so phones don't zoom into the field. */
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border: 1.5px solid rgba(10, 10, 10, 0.18);
+    border-radius: var(--r-sm);
+    background: #fff;
+    font: inherit;
+    font-size: 1rem;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.15);
+  }
+
+  .ig {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid rgba(10, 10, 10, 0.18);
+    border-radius: var(--r-sm);
+    background: #fff;
+  }
+
+  .ig > span {
+    padding-left: 0.9rem;
+    color: var(--burgundy);
+    font-weight: 600;
+  }
+
+  .ig input {
+    padding-left: 0.2rem;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .ig:focus-within {
+    border-color: var(--burgundy);
+    box-shadow: 0 0 0 3px rgba(177, 2, 61, 0.15);
+  }
+
+  .form__submit {
+    margin-top: 0.25rem;
+    padding: 1rem;
+    border-radius: var(--r-sm);
+    background: var(--burgundy);
+    color: var(--parchment);
+    font-size: 1.05rem;
+    font-weight: 500;
+    transition:
+      transform var(--press) var(--ease-out),
+      background-color 0.15s ease;
+  }
+
+  .form__submit:active {
+    transform: scale(0.98);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .form__submit:hover {
+      background: var(--burgundy-lift);
+    }
+  }
+
+  .form__note {
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--r-sm);
+    background: var(--rose-mist);
+    font-size: var(--step--1);
+    color: var(--ink-70);
+  }
+
+  .form__alt {
+    font-size: var(--step--1);
+    color: var(--ink-60);
+    text-align: center;
+  }
+
+  .form__alt a {
+    color: var(--burgundy);
+    font-weight: 500;
+  }
+
+  /* --- result states ------------------------------------------------------ */
+
+  .done {
+    display: grid;
+    justify-items: center;
+    gap: 0.9rem;
+    padding-block: 1rem;
+    text-align: center;
+  }
+
+  .done p {
+    max-width: 40ch;
+    color: var(--ink-60);
+  }
+
+  .done__icon {
+    font-size: 2.5rem;
+    line-height: 1;
+  }
+
+  .done__code {
+    padding: 0.6rem 1rem;
+    border: 1.5px dashed var(--burgundy);
+    border-radius: var(--r-sm);
+    background: var(--rose-mist);
+    color: var(--ink) !important;
+  }
+
+  .done__code b {
+    margin-left: 0.3em;
+    font-size: 1.1rem;
+    letter-spacing: 0.08em;
+    color: var(--burgundy);
+  }
+
+  .done__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .done {
+      animation: done-in 0.5s var(--ease-out) both;
+    }
+
+    @keyframes done-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+    }
+  }
+
+  @media (min-width: 960px) {
+    .reserve__grid {
+      grid-template-columns: 1fr 1.05fr;
+    }
+
+    .reserve__back {
+      grid-column: 1 / -1;
+    }
+
+    .event {
+      position: sticky;
+      top: 7rem;
+    }
+  }
+</style>

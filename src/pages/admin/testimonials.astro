@@ -1,0 +1,195 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import ImageField from "../../components/admin/ImageField.astro";
+import Pic from "../../components/ui/Pic.astro";
+import {
+  TONES,
+  deleteTestimonial,
+  getTestimonial,
+  saveTestimonial,
+  testimonials,
+  type Testimonial,
+} from "../../lib/content";
+import { FormError, back, flag, int, oneOf, text } from "../../lib/forms";
+import { UploadError, imageFromForm } from "../../lib/images";
+
+const PAGE = "/admin/testimonials";
+const toneKeys = Object.keys(TONES) as (keyof typeof TONES)[];
+
+if (Astro.request.method === "POST") {
+  const form = await Astro.request.formData();
+  const id = int(form, "id") || null;
+
+  if (form.get("intent") === "delete" && id) {
+    deleteTestimonial(id);
+    return Astro.redirect(back(PAGE, { saved: "Testimonial deleted." }));
+  }
+
+  try {
+    const existing = id ? getTestimonial(id) : undefined;
+    saveTestimonial(id, {
+      quote: text(form, "quote", { max: 600, required: "Add what she said." }),
+      name: text(form, "name", { max: 80, required: "Add her name." }),
+      role: text(form, "role", { max: 80 }),
+      avatar: await imageFromForm(form, "avatar", existing?.avatar ?? null),
+      tone: oneOf(form, "tone", toneKeys, "blush"),
+      position: int(form, "position", { min: 0, max: 999 }),
+      published: flag(form, "published"),
+    });
+    return Astro.redirect(back(PAGE, { saved: id ? "Testimonial updated." : "Testimonial added." }));
+  } catch (error) {
+    if (error instanceof FormError || error instanceof UploadError) {
+      return Astro.redirect(back(`${PAGE}?edit=${id ?? "new"}`, { error: error.message }));
+    }
+    throw error;
+  }
+}
+
+const items = testimonials(true);
+const editParam = Astro.url.searchParams.get("edit");
+const editing: Partial<Testimonial> | null =
+  editParam === "new"
+    ? { published: 1, tone: "blush", position: items.length }
+    : editParam
+      ? (getTestimonial(Number(editParam)) ?? null)
+      : null;
+---
+
+<AdminLayout title="Testimonials" intro="What girlies said after a session. Shown on the home page, lowest order number first.">
+  {
+    editing && (
+      <section class="panel" id="form">
+        <h2>{editing.id ? `Edit ${editing.name}'s testimonial` : "New testimonial"}</h2>
+        <form class="form" method="post" enctype="multipart/form-data">
+          {editing.id && <input type="hidden" name="id" value={editing.id} />}
+
+          <label>
+            Quote
+            <textarea name="quote" required maxlength="600">{editing.quote ?? ""}</textarea>
+          </label>
+
+          <div class="form__grid">
+            <label>
+              Name
+              <input name="name" required maxlength="80" value={editing.name ?? ""} />
+            </label>
+            <label>
+              Line under the name <small>e.g. “Came solo, stayed for six sessions”</small>
+              <input name="role" maxlength="80" value={editing.role ?? ""} />
+            </label>
+            <label>
+              Card colour
+              <select name="tone">
+                {toneKeys.map((k) => (
+                  <option value={k} selected={editing.tone === k}>
+                    {TONES[k].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Order
+              <input type="number" name="position" min="0" value={editing.position ?? 0} />
+            </label>
+          </div>
+
+          <ImageField name="avatar" label="Photo (optional)" current={editing.avatar} filter="avatars" />
+
+          <label class="check">
+            <input type="checkbox" name="published" checked={editing.published === 1} /> Show on the site
+          </label>
+
+          <div class="actions">
+            <button class="abtn" type="submit">{editing.id ? "Save changes" : "Add testimonial"}</button>
+            <a class="abtn abtn--ghost" href={PAGE}>Cancel</a>
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  <section class="panel">
+    <div class="panel__head">
+      <h2>{items.length} testimonials</h2>
+      <a class="abtn abtn--sm" href={`${PAGE}?edit=new#form`}>+ Add one</a>
+    </div>
+
+    {
+      items.length ? (
+        <ul class="quotes">
+          {items.map((t) => (
+            <li style={`background:${TONES[t.tone as keyof typeof TONES]?.surface ?? TONES.blush.surface}`}>
+              <p>“{t.quote}”</p>
+              <div class="quotes__by">
+                <span class="thumb">{t.avatar ? <Pic src={t.avatar} alt="" widths={[104]} sizes="52px" /> : null}</span>
+                <span>
+                  <b>{t.name}</b>
+                  <small>{t.role}</small>
+                </span>
+                {!t.published && <span class="pill pill--muted">Hidden</span>}
+              </div>
+              <div class="row-actions">
+                <a class="abtn abtn--ghost abtn--sm" href={`${PAGE}?edit=${t.id}#form`}>Edit</a>
+                <form method="post" data-confirm={`Delete ${t.name}'s testimonial?`}>
+                  <input type="hidden" name="id" value={t.id} />
+                  <button class="abtn abtn--danger abtn--sm" name="intent" value="delete" data-hold title="Press and hold to delete">
+                    Delete
+                  </button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">No testimonials yet.</p>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<style>
+  .quotes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .quotes li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1rem;
+    border-radius: var(--r-md);
+  }
+
+  .quotes p {
+    font-size: 0.9rem;
+  }
+
+  .quotes__by {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: auto;
+  }
+
+  .quotes__by .thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.6);
+  }
+
+  .quotes__by span:not(.thumb):not(.pill) {
+    display: grid;
+    line-height: 1.25;
+  }
+
+  .quotes__by small {
+    color: var(--ink-60);
+  }
+
+  .quotes .row-actions {
+    justify-content: flex-start;
+  }
+</style>

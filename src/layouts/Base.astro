@@ -4,6 +4,8 @@ import "@fontsource-variable/jost";
 import "../styles/global.css";
 import { site } from "../data/site";
 
+const settings = Astro.locals.settings;
+
 interface Props {
   title: string;
   description: string;
@@ -17,10 +19,10 @@ const structured = {
   "@type": "LocalBusiness",
   name: "The Girlies Club",
   description,
-  slogan: site.motto,
+  slogan: settings.motto,
   areaServed: site.city,
   address: { "@type": "PostalAddress", addressLocality: site.city, addressCountry: "MA" },
-  sameAs: [site.instagram],
+  sameAs: [settings.instagramUrl],
   knowsAbout: ["Crochet", "Painting", "Embroidery"],
 };
 ---
