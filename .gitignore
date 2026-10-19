@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # local SQLite database (holds uploads and sign-ups)
 data/
+
+# Netlify build output and local CLI state
+.netlify/
